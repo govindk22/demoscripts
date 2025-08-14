@@ -1,23 +1,15 @@
 #!/usr/bin/env bash
 
 ###
-Rules Recap
-
-If PROFILE is given:
-
-Case A: Branch exists in mapping and matches with input profile → return profile.
-
-Case B: Branch & profile both exist in mapping but do not match → return empty.
-
-Case C: Branch and profile both do not exist in mapping → return given profile (no warning).
-
-Case D: Branch has no mapping, and profile not listed in mapping → return given profile (no warning).
-
-If PROFILE is empty:
-
-Case E: Branch exists in mapping → return first profile match.
-
-Case F: Branch does not exist in mapping → return empty.
+#Rules Recap
+#If PROFILE is given:
+#Case A: Branch exists in mapping and matches with input profile → return profile.
+#Case B: Branch & profile both exist in mapping but do not match → return empty.
+#Case C: Branch and profile both do not exist in mapping → return given profile (no warning).
+#Case D: Branch has no mapping, and profile not listed in mapping → return given profile (no warning).
+#If PROFILE is empty:
+#Case E: Branch exists in mapping → return first profile match.
+#Case F: Branch does not exist in mapping → return empty.
 ###
 
 YAML_FILE="env-mapping.yaml"
@@ -38,6 +30,7 @@ try_yq() {
 # Get profiles for branch
 get_profiles_by_branch() {
     local branch="$1"
+	
     if try_yq -r --arg b "$branch" '.["env-mapping"] | to_entries[] | select(.value[] == $b) | .key' "$YAML_FILE"; then
         return
     fi
@@ -73,33 +66,25 @@ profile_exists_in_mapping() {
     ' "$YAML_FILE"
 }
 
-# --- MAIN LOGIC ---
-if [[ -n "$PROFILE" ]]; then
+if [[ ! -f "$YAML_FILE" ]]; then
+    # YAML missing → return given profile
+    TARGET="$PROFILE"
+elif [[ -n "$PROFILE" ]]; then
     branch_profiles=$(get_profiles_by_branch "$BRANCH")
-
-    if [[ -n "$branch_profiles" ]]; then
-        # Branch exists in mapping
-        if echo "$branch_profiles" | grep -Fx "$PROFILE" >/dev/null 2>&1; then
-            # Case A
-            TARGET="$PROFILE"
-        fi
-    else
-        # Branch not in mapping
-        if profile_exists_in_mapping "$PROFILE"; then
-            # Profile exists in mapping → branch not in mapping, return empty
-            echo ""
-        else
-            # Case C & D
-            TARGET="$PROFILE"
-        fi
+	if ! profile_exists_in_mapping "$PROFILE"; then
+		echo "Case C & D"
+		TARGET="$PROFILE"
+    elif [[ -n "$branch_profiles" ]] && echo "$branch_profiles" | grep -Fxq "$PROFILE"; then
+         TARGET="$PROFILE"
+    
     fi
 else
-    # PROFILE is empty
+    # PROFILE empty
     detected_profiles=$(get_profiles_by_branch "$BRANCH")
     if [[ -n "$detected_profiles" ]]; then
         # Case E
-		TARGET=$(echo "$detected_profiles" | head -n 1)
+        TARGET=$(echo "$detected_profiles" | head -n 1)
     fi
 fi
 
-echo 'Mapped env=$TARGET'
+echo "Mapped env=$TARGET"
