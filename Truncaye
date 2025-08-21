@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+INPUT_FILE="$1"
+OUTPUT_FILE="$2"
+
+if [ -z "$INPUT_FILE" ] || [ -z "$OUTPUT_FILE" ]; then
+  echo "Usage: $0 input.html output.html"
+  exit 1
+fi
+
+awk '
+  BEGIN { row=0; in_tr=0 }
+  /<tr/ { 
+    row++; 
+    in_tr=1 
+  }
+  {
+    if (row <= 4) {
+      print
+    } else if (in_tr && /<\/tr>/) {
+      in_tr=0
+    } else if (row > 4 && !in_tr) {
+      print
+    }
+  }
+' "$INPUT_FILE" > "$OUTPUT_FILE"
