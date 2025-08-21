@@ -1,3 +1,32 @@
+
+#!/usr/bin/env bash
+
+INPUT_FILE="$1"
+OUTPUT_FILE="$2"
+
+if [ -z "$INPUT_FILE" ] || [ -z "$OUTPUT_FILE" ]; then
+  echo "Usage: $0 input.html output.html"
+  exit 1
+fi
+
+# Delete from the 5th <tr> tag to the last <tr>, keep trailing content
+sed 's/<tr/\n<tr/g' "$INPUT_FILE" \
+| awk '
+  BEGIN { count=0; skip=0 }
+  /<tr/ { count++ }
+  {
+    if (count < 5) {
+      print
+    } else if (skip==0 && /<\/tr>/) {
+      # once we see the first </tr> after skipping, enable post-content printing
+      skip=1
+      next
+    } else if (skip==1) {
+      print
+    }
+  }
+' > "$OUTPUT_FILE"
+
 #!/usr/bin/env bash
 
 INPUT_FILE="$1"
