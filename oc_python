@@ -1,0 +1,201 @@
+requirements.txt
+PyYAML
+jinja2
+pandas
+
+oc_report.py
+#!/usr/bin/env python3
+import os
+import yaml
+import subprocess
+import json
+import pandas as pd
+from jinja2 import Environment, FileSystemLoader
+from datetime import datetime
+
+CLUSTERS_DIR = "clusters"
+TEMPLATE_DIR = "templates"
+OUTPUT_DIR = "output"
+
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+def run_oc(cmd, namespace=None):
+    """Run oc CLI command and return JSON output."""
+    base_cmd = ["oc"] + cmd
+    if namespace:
+        base_cmd.extend(["-n", namespace])
+    try:
+        result = subprocess.check_output(base_cmd, text=True)
+        return json.loads(result)
+    except subprocess.CalledProcessError as e:
+        print(f"Command failed: {' '.join(base_cmd)} -> {e}")
+        return {}
+
+
+def switch_cluster(cluster_url):
+    """Login to OpenShift cluster."""
+    print(f"Switching to cluster: {cluster_url}")
+    try:
+        subprocess.run(["oc", "login", cluster_url, "--token", os.getenv("OC_TOKEN")], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to login to {cluster_url}: {e}")
+
+
+def get_deployments(namespace):
+    data = run_oc(["get", "deployments", "-o", "json"], namespace)
+    deployments = []
+    for item in data.get("items", []):
+        metadata = item["metadata"]
+        spec = item["spec"]
+        deployments.append({
+            "type": "deployment",
+            "name": metadata["name"],
+            "namespace": metadata["namespace"],
+            "replicas": spec.get("replicas", 0),
+            "images": [c["image"] for c in spec["template"]["spec"]["containers"]],
+        })
+    return deployments
+
+
+def get_jobs(namespace):
+    data = run_oc(["get", "jobs", "-o", "json"], namespace)
+    jobs = []
+    for item in data.get("items", []):
+        metadata = item["metadata"]
+        jobs.append({
+            "type": "job",
+            "name": metadata["name"],
+            "namespace": metadata["namespace"],
+            "completions": item["spec"].get("completions", 0),
+        })
+    return jobs
+
+
+def get_routes(namespace):
+    data = run_oc(["get", "routes", "-o", "json"], namespace)
+    routes = []
+    for item in data.get("items", []):
+        metadata = item["metadata"]
+        spec = item["spec"]
+        tls = spec.get("tls", {})
+        expiry = None
+        if "certificate" in tls:
+            expiry = parse_cert_expiry(tls["certificate"])
+        routes.append({
+            "type": "route",
+            "name": metadata["name"],
+            "namespace": metadata["namespace"],
+            "host": spec.get("host", ""),
+            "tls_termination": tls.get("termination", ""),
+            "cert_expiry": expiry,
+        })
+    return routes
+
+
+def parse_cert_expiry(cert_text):
+    """(Optional) Parse PEM certificate expiry date using openssl."""
+    import tempfile
+    import subprocess
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(cert_text.encode())
+            tmp.flush()
+            out = subprocess.check_output(["openssl", "x509", "-enddate", "-noout", "-in", tmp.name], text=True)
+            return out.strip().split("=", 1)[1]
+    except Exception:
+        return None
+
+
+def collect_cluster_data(yaml_file, include_routes=False):
+    with open(yaml_file) as f:
+        conf = yaml.safe_load(f)
+    host = conf.get("host", {})
+    namespace = host.get("namespace")
+    cluster_url = host.get("clusterUrl")
+
+    switch_cluster(cluster_url)
+
+    deployments = get_deployments(namespace)
+    jobs = get_jobs(namespace)
+    routes = get_routes(namespace) if include_routes else []
+
+    return deployments + jobs + routes
+
+
+def render_report(data, output_html=True):
+    df = pd.DataFrame(data)
+    csv_path = os.path.join(OUTPUT_DIR, "report.csv")
+    json_path = os.path.join(OUTPUT_DIR, "report.json")
+
+    df.to_csv(csv_path, index=False)
+    df.to_json(json_path, orient="records", indent=2)
+
+    if output_html:
+        env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+        template = env.get_template("report.html.j2")
+        html = template.render(data=data, generated=datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        with open(os.path.join(OUTPUT_DIR, "report.html"), "w") as f:
+            f.write(html)
+
+    print(f"✅ Reports generated: {csv_path}, {json_path}, report.html")
+
+
+def main(include_routes=False):
+    all_data = []
+    for yaml_file in os.listdir(CLUSTERS_DIR):
+        if yaml_file.endswith(".yaml"):
+            print(f"Processing: {yaml_file}")
+            records = collect_cluster_data(os.path.join(CLUSTERS_DIR, yaml_file), include_routes)
+            all_data.extend(records)
+    render_report(all_data, output_html=True)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="OpenShift Cluster Deployment/Job Report Generator")
+    parser.add_argument("--include-routes", action="store_true", help="Include routes and certificate expiry")
+    args = parser.parse_args()
+    main(include_routes=args.include_routes)
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>OpenShift Cluster Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h2 { color: #004085; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 30px; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #f8f9fa; }
+        tr:nth-child(even) { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+<h2>OpenShift Cluster Report</h2>
+<p>Generated: {{ generated }}</p>
+<table>
+    <thead>
+        <tr>
+            {% for key in data[0].keys() %}
+            <th>{{ key }}</th>
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in data %}
+        <tr>
+            {% for value in row.values() %}
+            <td>{{ value }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</body>
+</html>
+
+export OC_TOKEN=<your-openshift-token>
+python3 oc_report.py --include-routes
