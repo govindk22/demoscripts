@@ -1,0 +1,104 @@
+# scripts/deploy.sh
+
+#!/usr/bin/env bash
+set -euo pipefail
+APP_NAME="$1"
+APP_VERSION="$2"
+
+echo "Deploying $APP_NAME ($APP_VERSION)..."
+helm upgrade --install "$APP_NAME" "./charts/$APP_NAME" \
+  --namespace "$HELM_NAMESPACE" \
+  --create-namespace \
+  --set image.tag="$APP_VERSION" \
+  --kube-context "$KUBE_CONTEXT"
+
+.gitlab-ci.yml
+
+stages:
+  - prepare
+  - deploy
+  - report
+
+variables:
+  HELM_NAMESPACE: "default"
+  HELM_CHARTS_PATH: "./charts"
+  KUBE_CONTEXT: "my-k8s-cluster"
+  APP_FILE: "app.properties"
+
+# Step 1. Prepare job: read the app list & versions and export JSON matrix
+prepare_matrix:
+  stage: prepare
+  image: alpine:latest
+  script:
+    - apk add --no-cache bash jq
+    - echo "Building job matrix from $APP_FILE..."
+    - |
+      MATRIX=$(awk -F= '{printf("{\"name\":\"%s\",\"version\":\"%s\"},", $1, $2)}' "$APP_FILE" | sed 's/,$//')
+      echo "{\"matrix\":[$MATRIX]}" > matrix.json
+      cat matrix.json
+  artifacts:
+    paths:
+      - matrix.json
+    expire_in: 1 hour
+
+# Step 2. Parallel Helm deployments using dynamic matrix
+helm_deploy:
+  stage: deploy
+  image: alpine/helm:3.14.0
+  needs: ["prepare_matrix"]
+  parallel:
+    matrix:
+      - APP_NAME: ["demo1", "demo2", "demo4"]  # fallback if properties missing
+  script:
+    - apk add --no-cache bash jq coreutils
+    - echo "Starting Helm deployment for $APP_NAME..."
+    - VERSION=$(grep "^$APP_NAME=" "$APP_FILE" | cut -d'=' -f2 || true)
+    - if [ -z "$VERSION" ]; then echo "Version not found for $APP_NAME, skipping."; exit 0; fi
+    - helm upgrade --install "$APP_NAME" "$HELM_CHARTS_PATH/$APP_NAME" \
+        --namespace "$HELM_NAMESPACE" \
+        --create-namespace \
+        --set image.tag="$VERSION" \
+        --kube-context "$KUBE_CONTEXT" \
+        > deploy.log 2>&1 || true
+    - STATUS=$(grep -qi "error" deploy.log && echo "FAILED" || echo "SUCCESS")
+    - ERRORS=$(grep -i "error" deploy.log | head -5 | tr '\n' ' ' || true)
+    - jq -n \
+        --arg name "$APP_NAME" \
+        --arg version "$VERSION" \
+        --arg status "$STATUS" \
+        --arg error "$ERRORS" \
+        '{app_name:$name, version:$version, status:$status, error:$error}' \
+        > "deploy-output-${APP_NAME}.json"
+  artifacts:
+    paths:
+      - deploy.log
+      - deploy-output-*.json
+    expire_in: 1 week
+
+# Step 3. Consolidate all results into an HTML report
+generate_report:
+  stage: report
+  image: alpine:latest
+  needs: ["helm_deploy"]
+  script:
+    - apk add --no-cache bash jq
+    - echo "Generating consolidated deployment report..."
+    - jq -s '.' deploy-output-*.json > combined.json
+    - |
+      echo "<!DOCTYPE html><html><head><title>Helm Deployment Report</title>" > report.html
+      echo "<style>body{font-family:sans-serif;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #888;padding:8px;text-align:left;}th{background:#333;color:#fff;}tr:nth-child(even){background:#f2f2f2;}</style></head><body>" >> report.html
+      echo "<h2>Helm Deployment Report</h2><table><tr><th>App Name</th><th>Version</th><th>Status</th><th>Error Details</th></tr>" >> report.html
+      jq -c '.[]' combined.json | while read -r row; do
+        NAME=$(echo "$row" | jq -r '.app_name')
+        VERSION=$(echo "$row" | jq -r '.version')
+        STATUS=$(echo "$row" | jq -r '.status')
+        ERRORS=$(echo "$row" | jq -r '.error')
+        COLOR=$( [ "$STATUS" = "SUCCESS" ] && echo "#d4edda" || echo "#f8d7da" )
+        echo "<tr style='background:$COLOR'><td>$NAME</td><td>$VERSION</td><td>$STATUS</td><td>${ERRORS:-None}</td></tr>" >> report.html
+      done
+      echo "</table></body></html>" >> report.html
+  artifacts:
+    paths:
+      - report.html
+      - combined.json
+    expire_in: 1 week
