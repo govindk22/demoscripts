@@ -1,0 +1,324 @@
+1. Functional Requirements
+
+📥 File Processing Lifecycle
+
+* System shall ingest files from:
+    * SFTP / object storage
+* Each file shall be uniquely identified (file_id)
+* Each file shall go through states:
+    * PENDING → PROCESSING → SUCCESS / FAILED
+
+⸻
+
+⚙️ Job Orchestration
+
+* System shall create processing jobs dynamically per file
+* Each job shall:
+    * Process exactly one file (recommended)
+    * Be stateless and idempotent
+* System shall support parallel execution of jobs
+
+⸻
+
+🔢 Concurrency Control
+
+* System shall enforce maximum parallel job limit (MAX_PARALLEL)
+* System shall:
+    * Read pending records from DB
+    * Spawn jobs only if capacity is available
+* System shall prevent duplicate processing using DB locking
+
+⸻
+
+🔁 Retry Management
+
+* System shall support:
+    * Automatic retry (configurable max attempts)
+    * Manual retry via API/UI
+* Failed jobs shall be eligible for retry
+* Retry shall create a new job instance
+
+⸻
+
+📊 Monitoring & Tracking
+
+* System shall track:
+    * Job status
+    * Start/end time
+    * Retry count
+    * Processing node/pod
+* System shall provide APIs/UI to:
+    * View job status
+    * Filter/search jobs
+    * View logs
+
+⸻
+
+📜 Logging
+
+* System shall provide:
+    * Access to job logs (via Kubernetes)
+    * Correlation using correlation_id
+
+⸻
+
+🌍 Multi-Data Center Support
+
+* System shall support:
+    * Active–Active OR Active–Passive modes
+* System shall avoid duplicate processing across DCs
+* System shall maintain a global processing state
+
+⸻
+
+🔐 Security
+
+* System shall use:
+    * Role-based access control (RBAC)
+    * Secure secrets for SFTP, DB
+* No direct cluster-admin usage
+
+⸻
+
+🧱 2. Technical Requirements
+
+⸻
+
+☸️ Platform
+
+* Container orchestration:
+    * Kubernetes (OpenShift compatible)
+* Jobs shall be executed using:
+    * Kubernetes Jobs (batch/v1)
+
+⸻
+
+🧠 Coordinator Service
+
+Technology
+
+* ASP.NET Core (.NET Worker/API)
+
+Responsibilities
+
+* Read DB for pending jobs
+* Enforce MAX_PARALLEL limit
+* Create Kubernetes Jobs via API (not CLI)
+* Track job lifecycle
+* Provide REST APIs
+
+Must support:
+
+* Non-blocking async job submission
+* Background reconciliation loop
+
+⸻
+
+🗄 Database Layer
+
+Use:
+
+* PostgreSQL
+
+Schema (simplified)
+
+file_jobs (
+  id UUID PRIMARY KEY,
+  file_path TEXT,
+  status TEXT,
+  retry_count INT,
+  locked_by TEXT,
+  locked_at TIMESTAMP,
+  created_at TIMESTAMP,
+  updated_at TIMESTAMP
+)
+
+Distributed Locking
+
+* Use DB-based locking:
+    * FOR UPDATE SKIP LOCKED
+* Ensure:
+    * No duplicate job pickup
+    * Safe multi-instance coordinator
+
+⸻
+
+⚙️ Job Execution
+
+Each Kubernetes Job shall:
+
+* Run a containerized worker
+* Accept input via ENV variables
+* Exit with:
+    * 0 → success
+    * non-zero → failure
+
+⸻
+
+🔄 Job Lifecycle Management
+
+Coordinator shall:
+
+* Create jobs asynchronously
+* Track via:
+    * Kubernetes Watch API (preferred)
+    * or polling
+
+⸻
+
+🔁 Retry Mechanism
+
+* DB-driven retry:
+    * Increment retry count
+    * Reset status to PENDING
+* Optional:
+    * Dead-letter handling
+
+⸻
+
+📡 Optional Messaging Layer (Recommended for scale)
+
+Use:
+
+* RabbitMQ
+    or
+* Apache Kafka
+
+Purpose:
+
+* Decouple ingestion from processing
+* Enable multi-DC distribution
+* Improve throughput
+
+⸻
+
+📦 Storage Layer
+
+* Object storage / SFTP:
+    * MinIO (self-hosted)
+    * or cloud equivalent
+
+⸻
+
+📊 Observability
+
+Use:
+
+* Prometheus
+* Grafana
+
+Track:
+
+* active jobs
+* queue depth / pending records
+* failures / retries
+* processing latency
+
+⸻
+
+📜 Logging
+
+* Use centralized logging:
+    * ELK Stack
+* Logs sourced from Kubernetes pods
+
+⸻
+
+🔐 Security & Access
+
+* Use ServiceAccount for coordinator
+* RBAC permissions:
+    * create/list/watch jobs
+    * read pod logs
+
+⸻
+
+🌍 Multi-DC Architecture
+
+Option 1 (Recommended)
+
+* Active–Active with shared DB + MQ
+
+Option 2
+
+* Active–Passive with leader election
+
+⸻
+
+⚡ Performance & Scaling
+
+* Horizontal scaling:
+    * multiple coordinator instances
+    * multiple worker pods
+* Auto-scaling:
+    * based on queue depth or CPU
+
+⸻
+
+🔁 3. End-to-End Flow
+
+1. File arrives (SFTP / storage)
+2. DB record created (PENDING)
+3. Coordinator polls DB
+4. Claims records (SKIP LOCKED)
+5. Creates Kubernetes Jobs
+6. Worker processes file
+7. Worker updates DB (SUCCESS/FAILED)
+8. Coordinator tracks status
+9. Retry triggered if needed
+
+4. Non-Functional Requirements
+
+Reliability
+
+* Idempotent processing
+* Automatic retries
+* Recovery for stuck jobs
+
+Scalability
+
+* Handle increasing file volume
+* Support horizontal scaling
+
+Availability
+
+* Multi-DC capable
+* No single point of failure
+
+Maintainability
+
+* Modular services
+* Clear separation:
+    * coordinator vs worker
+
+⸻
+
+💡 5. Key Design Decisions
+
+* ❌ No file watchers
+* ❌ No manual AutoSys jobs
+* ❌ No blocking threads
+* ❌ No kubectl/oc inside app
+* ✅ DB-driven orchestration
+* ✅ Kubernetes-native Jobs
+* ✅ Async processing
+* ✅ Idempotency-first design
+
+⸻
+
+🧠 Final Architecture Summary
+
+* Coordinator → decides what & when
+* Database → controls state & concurrency
+* Kubernetes → executes work in parallel
+* (Optional MQ) → distributes load across systems
+
+⸻
+
+If you want, I can next convert this into:
+
+* 📄 Architecture diagram (enterprise-grade)
+* 📦 Helm charts + YAML
+* 🧪 POC implementation plan (2–3 weeks roadmap)
+* 📊 Capacity planning model (jobs/sec vs pods)
+
