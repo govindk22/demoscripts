@@ -1,0 +1,14 @@
+Hello everyone, we developed a deployment portal to simplify our whole deployment process.
+
+Will start  with quick demo first and then will explain why we developed.
+
+The first step is to create a deployment request. After you log in, you can create a deployment request by clicking on “New Deployment,” then selecting the environment, inputting the application versions, and adding the list of JIRAs or user stories.
+
+Once the deployment is ready, it will be queued to the implementation teams. The implementation team reviews it and performs the deployment by clicking the deploy action button with just one click action.
+
+The second workflow is the merge request review process. During the code freeze phase, right before production rollout, the changes are carefully vetted by leads and test leads through this merge request review process. Essentially, it starts with developers submitting their merge requests, and from there, leads review those changes before the final deployment happens.
+
+Other key features includes Simplified one click registration, self service role section and complete audit trials.
+
+Before introduced the Portal, development team begins by making a request on a Confluence page. Then, implementation team verifies everything and creates a consolidated list of application versions. After that, they move over to GitLab to handle  deployment. Once the deployment is complete, they update the Confluence page again with status. They repeat this process multiple times a day as they receive requests from various application teams, developers. This process took quite a bit of time and effort on a daily basis.
+
