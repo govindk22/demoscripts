@@ -1,0 +1,759 @@
+I would like to make this as consolidated prompt for enhanceing existing Code insight platform which may have this capabilties and enhance with this features. Provide crisp and inclusive summary.
+
+Layer 1: Static Analysis (Ground Truth)
+
+Extract facts from the repository.
+
+Source Code
+
+Build a normalized model:
+
+{
+  "services": [],
+  "controllers": [],
+  "repositories": [],
+  "entities": [],
+  "dependencies": []
+}
+
+Using:
+
+Java
+JavaParser
+PMD
+SpotBugs
+OpenRewrite
+.NET
+Roslyn
+Python
+AST
+Radon
+TypeScript
+ts-morph
+Build Files
+
+Extract:
+
+Maven
+pom.xml
+
+Discover:
+
+Spring Boot
+Kafka
+Oracle
+Redis
+JUnit
+Gradle
+Dependencies
+Plugins
+Java Version
+.NET
+*.csproj
+
+Discover:
+
+Framework Version
+NuGet Packages
+Node
+package.json
+
+Discover:
+
+Frameworks
+Libraries
+Build Scripts
+Infrastructure
+
+Analyze:
+
+Dockerfile
+
+docker-compose
+
+Jenkinsfile
+
+GitHub Actions
+
+GitLab CI
+
+Helm Charts
+
+Kubernetes YAML
+
+OpenShift Templates
+
+Discover:
+
+Deployment Architecture
+Runtime Requirements
+External Services
+Layer 2: Repository Knowledge Model
+
+This is the secret sauce.
+
+Create a repository graph.
+
+Components
+Repository
+ Module
+  Service
+   Method
+    API
+External Systems
+Oracle
+Kafka
+Redis
+Active Directory
+REST APIs
+Relationships
+PaymentController
+      |
+      v
+PaymentService
+      |
+      v
+PaymentRepository
+      |
+      v
+PAYMENT_TABLE
+
+Store in:
+
+PostgreSQL
+NetworkX
+Neo4j (optional)
+Documents You Can Generate Reliably
+
+Once you have a knowledge model, Bedrock becomes extremely effective.
+
+1. Architecture Document
+
+Input:
+
+{
+  "services": 25,
+  "controllers": 10,
+  "externalSystems": [
+      "Oracle",
+      "Kafka"
+  ]
+}
+
+Generate:
+
+System Overview
+
+Architecture Style
+
+Modules
+
+External Dependencies
+
+Deployment Model
+
+Data Flow
+
+Risks
+
+Recommendations
+2. Functional Requirements
+
+This is often overlooked.
+
+Most business requirements can be inferred from:
+
+API endpoints
+
+Database schema
+
+Workflow states
+
+Validation rules
+
+Message flows
+
+Example:
+
+POST /payment
+
+status:
+NEW
+AUTHORIZED
+RELEASED
+
+LLM can infer:
+
+System allows users to submit payments.
+
+Payments must be authorized before release.
+
+Released payments cannot be modified.
+
+This creates a draft Functional Requirements Document.
+
+3. Technical Requirements
+
+Extract from:
+
+Dependencies
+Java 17
+
+Spring Boot 3
+
+Kafka
+
+Oracle
+
+Generate:
+
+System shall run on Java 17.
+
+System shall connect to Oracle.
+
+System shall publish messages to Kafka.
+4. API Documentation
+
+Extract automatically.
+
+Spring
+@GetMapping
+@PostMapping
+ASP.NET
+[HttpGet]
+[HttpPost]
+
+Generate:
+
+Endpoint
+
+Request
+
+Response
+
+Validation
+
+Error Codes
+
+No LLM required initially.
+
+5. Data Model Documentation
+
+Extract:
+
+@Entity
+
+Generate:
+
+Tables
+
+Relationships
+
+Foreign Keys
+
+Indexes
+
+Then Bedrock creates business descriptions.
+
+6. Sequence Diagrams
+
+Build call chains:
+
+Controller
+ -> Service
+ -> Repository
+ -> Oracle
+
+Generate Mermaid:
+
+Invalid or unsupported diagram.
+7. Application Support Guide
+
+Extract:
+
+Properties
+
+YAML
+
+Environment Variables
+
+Secrets
+
+Kafka Topics
+
+Queues
+
+Generate:
+
+Operational Runbook
+
+Restart Procedures
+
+Dependencies
+
+Troubleshooting
+8. Modernization Assessment
+
+Use:
+
+OpenRewrite
+Dependency analysis
+
+Generate:
+
+Current State
+
+Target State
+
+Migration Complexity
+
+Effort Estimate
+
+Risks
+
+Example:
+
+Java 8
+
+Spring Boot 2.2
+
+Target:
+
+Java 21
+
+Spring Boot 3.5
+Best Bedrock Prompt Pattern
+
+Avoid:
+
+Analyze these 500 source files.
+
+Use:
+
+{
+  "applicationName":"Payment Service",
+
+  "architecture": {
+      ...
+  },
+
+  "apis":[
+      ...
+  ],
+
+  "database":[
+      ...
+  ],
+
+  "dependencies":[
+      ...
+  ],
+
+  "securityFindings":[
+      ...
+  ]
+}
+
+Prompt:
+
+You are a principal enterprise architect.
+
+Generate:
+
+1. Executive Summary
+2. Architecture Overview
+3. Functional Requirements
+4. Non Functional Requirements
+5. Risks
+6. Recommendations
+
+Use only the provided repository metadata.
+Do not invent capabilities.
+
+This dramatically improves accuracy.
+
+Documents I Would Generate Automatically
+
+For each repository:
+
+Document	Confidence
+Architecture Document	95%
+API Documentation	100%
+Technical Requirements	90%
+Functional Requirements	70-85%
+Support Runbook	85%
+Deployment Guide	90%
+Data Model Documentation	95%
+Security Assessment	90%
+Technical Debt Report	95%
+Modernization Assessment	95%
+
+Recommended Pipeline for Your Platform
+Git Repository
+      |
+      v
+
+Static Analysis
+
+(JavaParser)
+(Roslyn)
+(AST)
+(ts-morph)
+
+      |
+      v
+
+Dependency Extraction
+
+      |
+      v
+
+Knowledge Graph
+
+      |
+      v
+
+Bedrock Agents
+
+Architecture Agent
+
+Requirements Agent
+
+Documentation Agent
+
+Modernization Agent
+
+      |
+      v
+
+Outputs
+
+Architecture.docx
+
+Requirements.docx
+
+SupportGuide.docx
+
+SecurityReport.csv
+
+TechnicalDebt.csv
+
+Mermaid.md
+
+PlantUML.puml
+
+Build Multi-Agent Bedrock (Best Quality) and provide input based on that
+Metadata
+   |
+   +--> Architecture Agent
+   |
+   +--> Security Agent
+   |
+   +--> Requirements Agent
+   |
+   +--> Modernization Agent
+   |
+   +--> Documentation Agent
+
+Documentation Agents Generate:
+- Architecture  (Executive Summary & Architecture)
+- Functional  (Functional )
+- Technical  (Technical)
+	- Requirements
+	- Security Review
+	- Technical Debt Assessment
+	- Modernization Recommendations
+	- Support Guide
+	- Deployment Architecture
+ 
+Ensure postgres contains full static metadata and each bedrock extract based on metadata 
+What I Would Store in PostgreSQL
+
+For each repository:
+
+{
+  "repository": "payment-service",
+
+  "languages": ["Java"],
+
+  "frameworks": ["Spring Boot"],
+
+  "apis": 145,
+
+  "services": 34,
+
+  "repositories": 20,
+
+  "entities": 50,
+
+  "tables": 72,
+
+  "externalSystems": [
+    "Oracle",
+    "Kafka",
+    "Redis"
+  ],
+
+  "securityFindings": [...],
+
+  "qualityFindings": [...],
+
+  "technicalDebt": [...]
+}
+
+
+Recommended Architecture
+Repository
+    |
+Static Analysis
+    |
+Repository Model
+    |
+Bedrock
+(JSON Response)
+    |
+Response Parser
+    |
+Document Model
+    |
+Templates
+    |
+PDF / DOCX / HTML / Confluence
+Step 1: Force Structured Output
+
+Don't ask:
+
+Generate architecture documentation.
+
+Ask:
+
+Return valid JSON only.
+
+Schema:
+
+{
+  "executive_summary":"",
+  "architecture_style":"",
+  "business_capabilities":[],
+  "components":[],
+  "external_systems":[],
+  "risks":[],
+  "recommendations":[]
+}
+
+Example response:
+
+{
+  "executive_summary":
+    "Payment processing application",
+
+  "architecture_style":
+    "Layered Monolith",
+
+  "business_capabilities":[
+    "Payment Processing",
+    "Settlement"
+  ],
+
+  "components":[
+    {
+      "name":"PaymentService",
+      "purpose":"Handles payment lifecycle"
+    }
+  ],
+
+  "external_systems":[
+    "Oracle",
+    "Kafka"
+  ],
+
+  "risks":[
+    "Large service classes"
+  ],
+
+  "recommendations":[
+    "Refactor services"
+  ]
+}
+
+This makes downstream processing predictable.
+
+Step 2: Create Document Models
+
+Example:
+
+from pydantic import BaseModel
+
+class ArchitectureDocument(BaseModel):
+
+    executive_summary: str
+
+    architecture_style: str
+
+    business_capabilities: list[str]
+
+    components: list
+
+    risks: list[str]
+
+    recommendations: list[str]
+
+Deserialize:
+
+doc = ArchitectureDocument.model_validate_json(
+    llm_response
+)
+
+Now you have a strongly typed document.
+
+Step 3: Generate Professional Templates
+
+Use Jinja2.
+
+Example:
+
+<h1>Architecture Overview</h1>
+
+<p>{{ executive_summary }}</p>
+
+<h2>Architecture Style</h2>
+
+<p>{{ architecture_style }}</p>
+
+<h2>Business Capabilities</h2>
+
+<ul>
+{% for capability in business_capabilities %}
+<li>{{ capability }}</li>
+{% endfor %}
+</ul>
+Step 4: Generate Word Documents
+
+For enterprise environments, DOCX is usually preferred over PDF.
+
+Use:
+
+python-docx
+
+Example:
+
+from docx import Document
+
+doc = Document()
+
+doc.add_heading(
+    'Architecture Overview',
+    level=1
+)
+
+doc.add_paragraph(
+    architecture.executive_summary
+)
+
+doc.save("architecture.docx")
+Step 5: Generate Multiple Documents
+
+One Bedrock response can produce multiple document sections.
+
+Example JSON:
+
+{
+  "architecture": {},
+  "functional_requirements": {},
+  "technical_requirements": {},
+  "security_assessment": {},
+  "support_guide": {},
+  "modernization_plan": {}
+}
+
+Then split into:
+
+Architecture.docx
+
+Requirements.docx
+
+SecurityAssessment.docx
+
+SupportGuide.docx
+
+ModernizationPlan.docx
+Professional Documentation Structure
+Architecture Document
+1 Executive Summary
+
+2 Purpose
+
+3 Scope
+
+4 System Context
+
+5 Architecture Overview
+
+6 Components
+
+7 External Systems
+
+8 Data Flow
+
+9 Deployment Architecture
+
+10 Risks
+
+11 Recommendations
+
+
+Confluence Generation
+
+Instead of generating DOCX directly:
+
+Generate markdown:
+
+# Architecture Overview
+
+## Components
+
+### PaymentService
+
+Then publish through Confluence REST APIs.
+
+This is usually easier than manipulating Word files.
+
+Best Practice for Your Repository Platform
+
+I would create a Document Generation Service with this flow:
+
+Repository
+      |
+      v
+Static Analysis
+      |
+      v
+Repository Model
+      |
+      v
+Bedrock JSON Response
+      |
+      v
+Response Validator
+(Pydantic)
+      |
+      v
+Document Generator
+      |
+      +--> DOCX
+      +--> PDF
+      +--> HTML
+      +--> Markdown
+      +--> Confluence
+
+The most important design decision is:
+
+Never let Bedrock generate the final document format.
+
+Instead:
+
+Bedrock generates structured JSON.
+Your application validates it.
+Templates generate the professional documents.
+
+This gives consistent formatting, version control, repeatable output, easier testing, and much higher-quality enterprise documentation.
