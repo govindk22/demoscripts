@@ -1,0 +1,30 @@
+Enhance an existing Code Insight Platform with an end-to-end, multi-layer pipeline that ingests any Git repository, builds a rich knowledge model, and generates a full suite of enterprise-grade documents via AWS Bedrock agents — with consistent formatting, high confidence, and zero hallucination of capabilities.
+
+Layer 1 — Static Analysis (ground truth extraction)
+Parse source code across Java (JavaParser, PMD, SpotBugs, OpenRewrite), .NET (Roslyn), Python (AST, Radon), and TypeScript (ts-morph) into a normalized model covering services, controllers, repositories, entities, and dependencies.
+Extract build metadata from Maven pom.xml, Gradle, .csproj, and package.json — capturing framework versions, libraries, Java/runtime version, and plugins. Analyze infrastructure files (Dockerfile, docker-compose, Jenkinsfile, GitHub Actions, GitLab CI, Helm Charts, Kubernetes YAML, OpenShift templates) to discover deployment architecture, runtime requirements, and external services.
+
+Layer 2 — Repository Knowledge Model
+Construct a component-relationship graph (service → controller → repository → database table) and store it in PostgreSQL as the canonical metadata store. Every downstream Bedrock agent must read exclusively from this structured metadata — never from raw source files.
+Each repository record includes: languages, frameworks, API count, service/entity counts, external systems (Oracle, Kafka, Redis, Active Directory), security findings, quality findings, and technical debt items.
+Optionally index the graph in NetworkX or Neo4j for traversal queries.
+
+Layer 3 — Multi-Agent Bedrock (structured JSON I/O)
+Five specialized agents each receive scoped JSON metadata as input and return structured JSON only (no prose, no Markdown):
+AgentPrimary outputsArchitecture agentExecutive summary, architecture style, components, data flow, deployment modelRequirements agentFunctional requirements (inferred from endpoints, schema, workflow states), technical requirementsSecurity agentVulnerability findings, CVEs, misconfiguration risksModernization agentCurrent-state assessment, target state, migration complexity, effort estimateDocumentation agentAPI docs, data model descriptions, sequence diagrams (Mermaid), support runbook
+Prompt pattern: Always supply a structured JSON context object and instruct: "Use only the provided repository metadata. Do not invent capabilities. Return valid JSON matching this schema."
+                No "creative" instructions, Do not invent capabilities. If information is unavailable, state that explicitly.
+
+Layer 4 — Validation & Document Models
+Deserialize every Bedrock response through Pydantic models (e.g. ArchitectureDocument, SecurityAssessment). Reject or retry any response that fails schema validation. This ensures downstream processing is fully deterministic.
+
+Layer 5 — Document Generation
+Render validated models through Jinja2 templates into target formats:
+
+DOCX (python-docx) for enterprise delivery
+PDF / HTML for web/portal distribution
+Markdown → Confluence REST API for wiki publishing
+Mermaid / PlantUML for diagrams
+CSV for security and debt findings
+
+Critical design rule: Bedrock generates JSON. Templates generate documents. The LLM never writes the final formatted output.
