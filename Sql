@@ -1,0 +1,777 @@
+Enterprise Database Release Management Framework
+
+Master Implementation Prompt
+
+You are a Principal Platform Architect specializing in enterprise banking platforms.
+
+Design and implement a production-ready Enterprise Database Release Management Framework for Oracle and PostgreSQL that integrates with GitLab, Nexus Repository, Kubernetes/OpenShift, and enterprise CI/CD pipelines.
+
+The framework must support highly regulated financial institutions with complete auditability, repeatability, rollback capability, immutable releases, and zero manual deployment steps.
+
+⸻
+
+Primary Goals
+
+Design a reusable platform that supports:
+
+* Oracle Database
+* PostgreSQL
+* GitLab
+* Nexus Repository
+* Kubernetes/OpenShift
+* GitOps deployment model
+* Dev, QA, UAT, Production
+* Multi-region deployments
+* Parallel application releases
+* Multiple applications sharing one database
+* Enterprise banking compliance
+* Immutable database releases
+
+The framework must support:
+
+* Fresh installation
+* Upgrade
+* Patch release
+* Rollback
+* Hotfix deployment
+* Emergency rollback
+* Database drift detection
+* Validation
+* Dry-run mode
+* Automatic reporting
+* Release promotion
+
+⸻
+
+Architecture Requirements
+
+Design the solution using clean architecture.
+
+Include:
+
+Presentation Layer
+
+* CLI
+* REST API
+* GitLab Integration
+
+Application Layer
+
+* Release Engine
+* Deployment Engine
+* Validation Engine
+* Rollback Engine
+* Drift Detection Engine
+* Report Generator
+
+Domain Layer
+
+Release
+
+ReleaseManifest
+
+Migration
+
+ExecutionPlan
+
+Environment
+
+DeploymentHistory
+
+RollbackPlan
+
+DatabaseObject
+
+ExecutionResult
+
+Infrastructure
+
+Oracle executor
+
+Postgres executor
+
+Nexus client
+
+Git client
+
+Logging
+
+Notification
+
+Metrics
+
+Configuration
+
+⸻
+
+Technology Stack
+
+Language
+
+Python 3.13
+
+Libraries
+
+SQLAlchemy
+
+oracledb
+
+psycopg
+
+Typer CLI
+
+Pydantic
+
+Jinja2
+
+Rich
+
+PyYAML
+
+OpenTelemetry
+
+Requests
+
+pytest
+
+Docker
+
+No ORM should manage schema changes.
+
+SQL scripts remain source of truth.
+
+⸻
+
+Repository Structure
+
+Design a repository similar to:
+
+database/
+
+releases/
+    R1.0.0/
+        manifest.yaml
+        oracle/
+            install/
+            rollback/
+            verify/
+            upgrade/
+            downgrade/
+        postgres/
+            install/
+            rollback/
+            verify/
+            upgrade/
+            downgrade/
+        reports/
+        docs/
+    R1.0.1/
+    R1.1.0/
+
+common/
+
+templates/
+validation/
+utilities/
+
+pipelines/
+
+tools/
+
+docs/
+
+examples/
+
+⸻
+
+Release Manifest
+
+Every release contains
+
+Release number
+
+Supported database versions
+
+Dependencies
+
+Pre-requisites
+
+Execution order
+
+Rollback order
+
+Validation scripts
+
+Supported upgrade paths
+
+Checksums
+
+Digital signature
+
+Artifact version
+
+Target environments
+
+Approval requirements
+
+Maintenance window
+
+Estimated execution time
+
+⸻
+
+SQL Organization
+
+Separate scripts into categories.
+
+Examples
+
+001_prechecks.sql
+
+010_users.sql
+
+020_roles.sql
+
+030_tables.sql
+
+040_sequences.sql
+
+050_indexes.sql
+
+060_constraints.sql
+
+070_views.sql
+
+080_functions.sql
+
+090_packages.sql
+
+100_triggers.sql
+
+110_seed_data.sql
+
+120_permissions.sql
+
+999_validation.sql
+
+Rollback must execute in reverse order.
+
+⸻
+
+Execution Engine
+
+Implement
+
+Automatic ordering
+
+Dependency resolution
+
+Transactional execution where supported
+
+Continue/stop policies
+
+Retry policy
+
+Timeouts
+
+Parallel execution
+
+Script checksum validation
+
+Script signature validation
+
+Execution history
+
+Resume after failure
+
+Idempotent execution tracking
+
+Environment locking
+
+Release locking
+
+⸻
+
+Metadata Tables
+
+Design enterprise metadata tables
+
+DATABASE_RELEASE
+
+DATABASE_CHANGE_LOG
+
+DATABASE_OBJECT_HISTORY
+
+DATABASE_DRIFT
+
+DATABASE_DEPLOYMENT
+
+DATABASE_VALIDATION
+
+DATABASE_ROLLBACK
+
+DATABASE_LOCK
+
+Store
+
+Release
+
+Script
+
+Checksum
+
+Execution time
+
+Duration
+
+Executed by
+
+Git Commit
+
+Pipeline ID
+
+Environment
+
+Status
+
+Rollback status
+
+Artifact version
+
+Database version
+
+⸻
+
+Deployment Modes
+
+Support
+
+Fresh Install
+
+Upgrade
+
+Rollback
+
+Repair
+
+Validate Only
+
+Dry Run
+
+Generate Report
+
+Generate SQL Plan
+
+Offline Package
+
+Air-Gapped Deployment
+
+Emergency Mode
+
+⸻
+
+Validation
+
+Implement
+
+Syntax validation
+
+Dependency validation
+
+Duplicate object detection
+
+Naming conventions
+
+Circular dependency detection
+
+Security validation
+
+SQL lint
+
+Object existence validation
+
+Checksum validation
+
+Schema drift detection
+
+Reference data validation
+
+Data integrity validation
+
+Foreign key validation
+
+Performance validation
+
+Post deployment smoke test
+
+⸻
+
+Drift Detection
+
+Compare
+
+Expected schema
+
+Actual schema
+
+Missing tables
+
+Extra tables
+
+Modified procedures
+
+Indexes
+
+Constraints
+
+Triggers
+
+Views
+
+Sequences
+
+Generate HTML and PDF reports.
+
+⸻
+
+Rollback Strategy
+
+Support
+
+DDL rollback
+
+Reference data rollback
+
+Feature toggle rollback
+
+Version rollback
+
+Partial rollback
+
+Forward fix
+
+Point-in-time restore integration
+
+Database backup verification
+
+Rollback approval gates
+
+Rollback reports
+
+⸻
+
+Nexus Integration
+
+Each release is packaged as
+
+database-release-2.4.0.zip
+
+manifest.yaml
+
+checksums.sha256
+
+signature.asc
+
+release-notes.pdf
+
+deployment-guide.pdf
+
+rollback-guide.pdf
+
+verification-report.html
+
+Publish automatically.
+
+Never deploy directly from Git.
+
+Deploy immutable artifacts only.
+
+⸻
+
+GitLab Pipeline
+
+Stages
+
+Validate
+
+Static SQL Analysis
+
+Security Scan
+
+Build Release Artifact
+
+Generate Manifest
+
+Package Release
+
+Sign Artifact
+
+Publish to Nexus
+
+Deploy DEV
+
+Validate DEV
+
+Approval
+
+Deploy QA
+
+Validate QA
+
+Approval
+
+Deploy UAT
+
+Validate UAT
+
+Approval
+
+Deploy PROD
+
+Generate Reports
+
+Archive Logs
+
+⸻
+
+Reports
+
+Generate
+
+HTML
+
+PDF
+
+Excel
+
+JSON
+
+Markdown
+
+Include
+
+Execution timeline
+
+Script execution time
+
+Database statistics
+
+Rollback summary
+
+Warnings
+
+Errors
+
+Skipped scripts
+
+Object counts
+
+Performance metrics
+
+Pipeline metadata
+
+Git metadata
+
+Deployment approvals
+
+Environment information
+
+⸻
+
+Logging
+
+JSON structured logging
+
+Correlation IDs
+
+Pipeline IDs
+
+Release IDs
+
+Script IDs
+
+Execution duration
+
+OpenTelemetry support
+
+Prometheus metrics
+
+⸻
+
+Security
+
+Secrets stored outside Git
+
+Vault integration
+
+Database credentials rotation
+
+Signed release artifacts
+
+Least privilege deployment accounts
+
+Audit trail
+
+Tamper detection
+
+Role-based access
+
+⸻
+
+Notifications
+
+Microsoft Teams
+
+Slack
+
+Email
+
+Webhook
+
+Include deployment reports.
+
+⸻
+
+CLI Commands
+
+dbrelease validate
+
+dbrelease install
+
+dbrelease upgrade
+
+dbrelease rollback
+
+dbrelease verify
+
+dbrelease repair
+
+dbrelease report
+
+dbrelease package
+
+dbrelease publish
+
+dbrelease compare
+
+dbrelease drift
+
+dbrelease history
+
+dbrelease status
+
+dbrelease resume
+
+dbrelease clean
+
+⸻
+
+Configuration
+
+YAML driven.
+
+Support
+
+Multiple environments
+
+Multiple databases
+
+Connection pools
+
+Timeouts
+
+Retry policies
+
+Parallel execution
+
+Approval rules
+
+Maintenance windows
+
+Notifications
+
+⸻
+
+Testing
+
+Unit tests
+
+Integration tests
+
+End-to-end tests
+
+Container tests
+
+Oracle tests
+
+Postgres tests
+
+GitLab pipeline tests
+
+Performance tests
+
+Rollback tests
+
+Disaster recovery tests
+
+⸻
+
+Documentation
+
+Generate
+
+Architecture document
+
+Deployment guide
+
+Developer guide
+
+Operator guide
+
+Troubleshooting guide
+
+Disaster recovery guide
+
+Release management guide
+
+Sequence diagrams
+
+Class diagrams
+
+Component diagrams
+
+Deployment diagrams
+
+⸻
+
+Deliverables
+
+Produce a complete production-ready project including
+
+1. Full repository structure
+2. Python implementation
+3. Domain models
+4. Configuration examples
+5. Manifest specification
+6. GitLab CI/CD pipeline
+7. Docker image
+8. Kubernetes/OpenShift deployment
+9. Nexus publishing
+10. Oracle implementation
+11. PostgreSQL implementation
+12. HTML/PDF report templates
+13. Unit tests
+14. Integration tests
+15. Documentation
+16. Sample releases
+17. Example SQL scripts
+18. Rollback implementation
+19. Drift detection engine
+20. Validation engine
+21. Release promotion workflow
+22. Disaster recovery workflow
+23. Complete sequence diagrams
+24. Enterprise architecture diagrams
+25. Production deployment checklist
+
+The implementation must follow enterprise banking standards with immutable releases, GitOps principles, automated validation, comprehensive audit trails, zero-downtime migration practices where possible, and deterministic, repeatable deployments suitable for highly regulated environments.
