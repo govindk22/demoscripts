@@ -1,0 +1,658 @@
+Claude Prompt – Build Delivery Copilot AI (MVP)
+
+Build a production-quality MVP named Delivery Copilot AI, an AI-powered Requirements Engineering and JIRA Story Intelligence platform for enterprise banking technology teams.
+
+The application should help Business Analysts, Product Owners, Architects, Tech Leads, and Developers generate, review, refine, and manage JIRA Epics and User Stories using Amazon Bedrock (Anthropic Claude), while leveraging existing JIRA projects and source code repositories as contextual knowledge.
+
+Technology Stack
+
+Frontend
+
+* React 19
+* TypeScript
+* Vite
+* Material UI
+* React Query
+* React Router
+* Monaco Editor
+* React Flow (tree visualization)
+* Zustand for state management
+
+Backend
+
+* Python FastAPI
+* SQLAlchemy
+* SQLite for MVP (designed to migrate easily to PostgreSQL)
+* Alembic migrations
+
+AI
+
+* Amazon Bedrock
+* Anthropic Claude Sonnet
+* Prompt templates stored in database
+* Streaming responses
+
+Integrations
+
+* Atlassian JIRA REST API
+* GitHub/GitLab repository integration
+* Local repository indexing
+* Markdown document generation
+
+Authentication
+
+* Simple local authentication for MVP
+* Role-based authorization
+* Workspace ownership
+
+⸻
+
+Core Concept
+
+Each Workspace represents one product or application.
+
+A workspace contains:
+
+* Users
+* JIRA Projects
+* Source repositories
+* AI prompts
+* Story reviews
+* Generated documents
+* AI history
+
+Workspace owners can invite users and assign roles.
+
+⸻
+
+Database Design
+
+Create normalized database schema.
+
+Tables
+
+Users
+
+Roles
+
+Workspaces
+
+WorkspaceMembers
+
+JiraProjects
+
+Repositories
+
+RepositoryIndex
+
+Epics
+
+Stories
+
+StoryVersions
+
+StoryReview
+
+PromptTemplates
+
+GeneratedDocuments
+
+AiSessions
+
+Settings
+
+AuditLog
+
+The design should allow migration to PostgreSQL without code changes.
+
+⸻
+
+Dashboard
+
+Modern enterprise UI.
+
+Barclays Blue theme.
+
+Layout
+
+Left Sidebar
+
+Workspace selector
+
+Search Workspace
+
+Recent Workspaces
+
+Epics Tree
+
+Stories Tree
+
+Top Header
+
+Workspace
+
+Feature Name
+
+Story Count
+
+Reviewed Count
+
+Pending Count
+
+Repository Status
+
+JIRA Status
+
+Main Area
+
+Tabbed interface
+
+Feature
+
+Stories
+
+Review
+
+Repository
+
+Documents
+
+Settings
+
+Responsive layout
+
+Dark and Light themes.
+
+⸻
+
+Workspace Features
+
+Create workspace
+
+Edit workspace
+
+Delete workspace
+
+Search workspace
+
+Clone workspace
+
+Switch workspace
+
+Invite users
+
+Assign permissions
+
+⸻
+
+JIRA Integration
+
+Allow:
+
+Search JIRA
+
+Connect Project
+
+Import Epic
+
+Import Stories
+
+Sync Stories
+
+Update Story
+
+Create Story
+
+Show hierarchy
+
+Epic
+
+Feature
+
+Story
+
+Subtask
+
+Display in collapsible tree view.
+
+⸻
+
+Feature Input
+
+User may either
+
+Search an existing JIRA Feature
+
+OR
+
+Create a new Feature manually.
+
+Manual feature should include
+
+Business objective
+
+Business problem
+
+Scope
+
+Out of scope
+
+Dependencies
+
+Assumptions
+
+Business rules
+
+Acceptance goals
+
+Priority
+
+Risk
+
+Compliance
+
+Attachments
+
+⸻
+
+Repository Integration
+
+Allow connecting
+
+GitHub
+
+GitLab
+
+Bitbucket
+
+Local Repository
+
+Repository index should extract
+
+Controllers
+
+Services
+
+Entities
+
+Database Tables
+
+REST APIs
+
+Kafka Topics
+
+RabbitMQ Queues
+
+Batch Jobs
+
+Configuration
+
+Business Rules
+
+Markdown
+
+Architecture
+
+Store embeddings/context for AI.
+
+⸻
+
+AI Capabilities
+
+Use Amazon Bedrock Anthropic.
+
+Support prompt templates.
+
+Generate
+
+Epic
+
+User Stories
+
+Acceptance Criteria
+
+Technical Tasks
+
+Subtasks
+
+Story Points
+
+Definition of Done
+
+Dependencies
+
+Risks
+
+Non-functional Requirements
+
+API Suggestions
+
+Database Changes
+
+Security Requirements
+
+Monitoring Requirements
+
+Operational Readiness
+
+Retry
+
+Regenerate
+
+Improve
+
+Split Story
+
+Merge Stories
+
+Simplify Story
+
+Technical Review
+
+Business Review
+
+Gap Analysis
+
+Story Quality Score
+
+Always include confidence score.
+
+⸻
+
+Story Review Screen
+
+Split screen.
+
+Left
+
+Existing Story
+
+Right
+
+AI Suggested Story
+
+Buttons
+
+Accept
+
+Reject
+
+Edit
+
+Save
+
+Regenerate
+
+Improve
+
+Previous
+
+Next
+
+Save All
+
+Highlight differences.
+
+Markdown editing.
+
+Autosave.
+
+Version history.
+
+⸻
+
+AI Prompt Context
+
+Every AI request should include
+
+Feature
+
+Epic
+
+Related Stories
+
+Repository Context
+
+Architecture Context
+
+Coding Standards
+
+Business Rules
+
+Existing APIs
+
+Existing Database Tables
+
+Existing Documentation
+
+Previous Stories
+
+Prompt Templates
+
+Never generate stories without context.
+
+⸻
+
+Generated Documents
+
+One-click generation.
+
+Business Requirements Document
+
+Functional Specification
+
+Technical Design Document
+
+Solution Overview
+
+Architecture Recommendation
+
+API Specification
+
+Database Design
+
+Sequence Diagram (Mermaid)
+
+Flow Diagram (Mermaid)
+
+Acceptance Test Cases
+
+Integration Test Plan
+
+Release Notes
+
+Deployment Checklist
+
+Operational Runbook
+
+Export
+
+Markdown
+
+Word
+
+PDF
+
+⸻
+
+Search
+
+Global search
+
+Search
+
+Workspace
+
+Stories
+
+Epics
+
+Documents
+
+Repositories
+
+Users
+
+Prompt templates
+
+AI history
+
+⸻
+
+AI Chat
+
+Persistent AI assistant.
+
+Knows current workspace.
+
+Knows repositories.
+
+Knows imported JIRA.
+
+Can answer
+
+Explain this feature
+
+Generate stories
+
+Review story
+
+Suggest architecture
+
+Find duplicate stories
+
+Generate API
+
+Generate DB changes
+
+Generate test cases
+
+⸻
+
+Settings
+
+Bedrock Configuration
+
+Prompt Templates
+
+Theme
+
+Workspace Permissions
+
+JIRA Credentials
+
+Repository Credentials
+
+Model Selection
+
+Temperature
+
+Token Limits
+
+⸻
+
+UI Requirements
+
+Enterprise-grade UI.
+
+Barclays Blue branding.
+
+Rounded cards.
+
+Professional typography.
+
+Responsive.
+
+Keyboard shortcuts.
+
+Tree navigation.
+
+Loading skeletons.
+
+Streaming AI responses.
+
+Notifications.
+
+Breadcrumb navigation.
+
+Command palette.
+
+⸻
+
+Code Quality
+
+Use Clean Architecture.
+
+SOLID principles.
+
+Repository pattern.
+
+Service layer.
+
+Dependency Injection.
+
+Modular components.
+
+Reusable React components.
+
+Reusable API clients.
+
+Type-safe API contracts.
+
+Comprehensive logging.
+
+Error handling.
+
+Unit tests.
+
+Integration tests.
+
+OpenAPI documentation.
+
+⸻
+
+Future Extensibility
+
+The architecture must support future AI agents without redesign.
+
+Planned agents include:
+
+* Business Analyst Agent
+* Solution Architect Agent
+* Technical Lead Agent
+* Developer Agent
+* QA Agent
+* Security Agent
+* DevOps Agent
+* Release Manager Agent
+
+Each agent should be independently pluggable.
+
+⸻
+
+Deliverables
+
+Generate a complete runnable MVP including:
+
+1. Project folder structure
+2. Database schema
+3. FastAPI backend
+4. React frontend
+5. Authentication
+6. Workspace management
+7. JIRA integration layer
+8. Repository integration layer
+9. Amazon Bedrock integration
+10. Story generation workflow
+11. Story review UI
+12. Document generation
+13. Settings pages
+14. Sample data
+15. Docker Compose
+16. CI/CD pipeline
+17. Installation guide
+18. Architecture documentation
+19. REST API documentation
+20. Future extension points
+
+The generated code should be production-quality, modular, enterprise-ready, and follow banking software engineering best practices. Prioritize maintainability, extensibility, and clean separation of concerns over rapid prototyping.
