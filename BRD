@@ -1,0 +1,377 @@
+For StoryLens AI (or Delivery Copilot AI), I would treat documents as a first-class knowledge source, not merely as file attachments. This is one of the biggest differentiators from existing AI tools.
+
+Enterprise Knowledge Architecture
+
+Workspace
+│
+├── JIRA
+├── Git Repository
+├── Documents
+│    ├── BRD
+│    ├── FRD
+│    ├── Technical Design
+│    ├── API Specs
+│    ├── Excel Mapping
+│    ├── Visio
+│    ├── Confluence Export
+│    ├── PDF
+│    ├── Wiki
+│    └── Images
+│
+└── Knowledge Graph
+        │
+        ▼
+Document Processing Pipeline
+        │
+        ▼
+Embedding + Metadata + Search
+        │
+        ▼
+Story Review Context Builder
+        │
+        ▼
+Amazon Bedrock Claude
+
+The key idea is that documents are ingested once, indexed once, and reused many times.
+
+⸻
+
+Supported Documents
+
+Your platform should support almost everything a banking project uses.
+
+Type	Examples
+Word	BRD, FRD, Design Documents
+Excel	Mapping, Business Rules, Data Dictionary
+PowerPoint	Architecture, Project Overview
+PDF	Vendor Specifications
+Visio	Workflow, Architecture
+Markdown	Documentation
+HTML	API Docs
+OpenAPI	Swagger
+XML	ISO20022, XSD
+JSON	API Payloads
+CSV	Reference Data
+Images	BPMN, UML, Screenshots
+Confluence Export	HTML/XML
+Source Code	Java, .NET, Python, SQL
+
+⸻
+
+Upload Experience
+
+Instead of a simple attachment button, create a Knowledge Center.
+
+Workspace
+Knowledge Center
++ Upload
+-----------------------------
+Business Documents
+✓ BRD.docx
+✓ FRD.docx
+✓ Requirements.pdf
+Architecture
+✓ HLD.docx
+✓ LLD.docx
+✓ Sequence Diagram.vsdx
+Data
+✓ Mapping.xlsx
+✓ Data Dictionary.xlsx
+API
+✓ Swagger.yaml
+✓ OpenAPI.json
+Database
+✓ schema.sql
+Reference
+✓ Confluence Export
+✓ Wiki
+
+Each uploaded document is automatically processed.
+
+⸻
+
+Processing Pipeline
+
+When a document is uploaded:
+
+Upload
+↓
+Virus Scan
+↓
+Extract Text
+↓
+OCR (if needed)
+↓
+Chunk
+↓
+Metadata Extraction
+↓
+Embedding
+↓
+Keyword Index
+↓
+Store Original
+↓
+Ready for AI
+
+This pipeline should run asynchronously in the background.
+
+⸻
+
+Intelligent Chunking
+
+Never embed an entire 300-page document as one block.
+
+Instead:
+
+BRD
+Chapter 1
+Business Objectives
+↓
+Chunk
+Business Objectives
+Page 5
+Business Rules
+↓
+Chunk
+Business Rule 1
+↓
+Chunk
+Business Rule 2
+↓
+Chunk
+Acceptance Criteria
+
+Recommended chunk size:
+
+* 500–1,000 tokens
+* 15–20% overlap
+
+This improves retrieval accuracy.
+
+⸻
+
+Metadata
+
+Every chunk should carry rich metadata.
+
+{
+  "workspace": "Payments",
+  "document": "BRD.docx",
+  "section": "Business Rules",
+  "page": 22,
+  "feature": "Payment Recall",
+  "story": null,
+  "owner": "Business Analyst",
+  "tags": [
+    "Payments",
+    "SWIFT",
+    "High Value"
+  ]
+}
+
+Metadata lets you retrieve only the relevant chunks.
+
+⸻
+
+Story-Level Attachments
+
+Each story should have its own knowledge panel.
+
+PAY-1023
+Context
+✓ BRD
+✓ Mapping.xlsx
+✓ API Spec
+✓ Sequence Diagram
+✓ Existing Story
+✓ Source Code
+✓ Confluence Page
++ Add Context
+
+This gives reviewers explicit control over what the AI sees.
+
+⸻
+
+AI Context Builder
+
+Before every Bedrock call:
+
+Workspace Context
++
+Feature Context
++
+Story Context
++
+Relevant Documents
++
+Repository Knowledge
++
+Related JIRA
+↓
+Bedrock
+
+The AI never needs to “remember” previous uploads; it retrieves what’s needed.
+
+⸻
+
+Excel Processing
+
+Excel files are especially valuable in banking.
+
+Extract:
+
+* Sheets
+* Tables
+* Cell ranges
+* Named ranges
+* Column names
+* Relationships
+* Business mappings
+
+Example:
+
+Payments.xlsx
+Sheet
+Incoming Payments
+↓
+Columns
+Country
+Currency
+Cutoff
+Holiday
+Validation
+↓
+Embed
+
+This allows prompts like:
+
+“Generate stories using the validation rules in the Incoming Payments sheet.”
+
+⸻
+
+Word Processing
+
+Extract structure, not just plain text.
+
+Heading 1
+Payments
+Heading 2
+Business Rules
+Heading 2
+Scope
+Heading 2
+Acceptance Criteria
+Tables
+Lists
+Images
+Captions
+
+The hierarchy improves retrieval.
+
+⸻
+
+Image Understanding
+
+Many design documents include screenshots or diagrams.
+
+Use multimodal processing to analyze:
+
+* Architecture diagrams
+* BPMN workflows
+* Sequence diagrams
+* UI mockups
+* Flowcharts
+
+Store both the extracted text and an AI-generated description so those visuals become searchable.
+
+⸻
+
+Link Documents to Stories
+
+Allow users to associate documents at multiple levels.
+
+Workspace
+↓
+Feature
+↓
+Story
+↓
+Task
+
+For example:
+
+Workspace
+BRD.docx
+↓
+Feature
+Payment Recall
+↓
+Story
+PAY-1023
+↓
+Attachments
+✓ Mapping.xlsx
+✓ API Spec.pdf
+✓ Design.docx
+
+The story inherits workspace and feature documents while allowing story-specific additions.
+
+⸻
+
+AI Document Citations
+
+One of the strongest enterprise features is showing exactly where information came from.
+
+Example AI output:
+
+Business Rule Added
+Source:
+BRD.docx
+Page 17
+Section:
+Payment Validation Rules
+
+This increases trust and simplifies audits.
+
+⸻
+
+Recommended Storage Architecture
+
+Store documents separately from the application database.
+
+Object Storage
+S3
+Azure Blob
+MinIO
+↓
+Metadata Database
+↓
+Vector Database
+↓
+Keyword Search
+↓
+StoryLens
+
+For embeddings, consider:
+
+* Amazon Titan Embeddings or another Bedrock embedding model.
+* A vector store such as pgvector or Amazon OpenSearch Service.
+
+Keep the original documents in object storage and only index extracted content.
+
+⸻
+
+A Unique Feature: Context Packs
+
+Instead of requiring users to pick the same files repeatedly, let them create reusable Context Packs.
+
+Examples:
+
+* Payment Onboarding → BRD + API Spec + Mapping.xlsx + Design
+* SEPA Payments → ISO 20022 Guide + Validation Rules + Existing Stories
+* ACH Processing → NACHA Rules + Batch Design + Database Model
+
+When reviewing a story, the user simply selects a Context Pack, and StoryLens automatically retrieves the most relevant sections from those documents rather than sending every page to the model.
+
+This approach scales much better for enterprise banking projects with hundreds of documents and provides consistent, explainable AI-generated stories.
