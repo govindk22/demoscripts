@@ -1,0 +1,512 @@
+This is exactly where **Retrieval-Augmented Generation (RAG)** comes into play. The key principle is:
+
+> **Never send all document chunks to the AI. Retrieve only the chunks that are semantically relevant to the current story and prompt.**
+
+For your StoryLens platform, I recommend a **multi-stage context retrieval pipeline** rather than a simple vector similarity search.
+
+---
+
+# Recommended Context Retrieval Pipeline
+
+```text
+User Reviews Story
+        │
+        ▼
+Story Context Builder
+        │
+        ├── Story Text
+        ├── Acceptance Criteria
+        ├── Feature
+        ├── Epic
+        ├── User Prompt
+        └── Repository Context
+                │
+                ▼
+Semantic Query Generator
+                │
+                ▼
+Retrieve Candidate Chunks
+                │
+                ▼
+Metadata Filtering
+                │
+                ▼
+Re-ranking
+                │
+                ▼
+Top 10-20 Chunks
+                │
+                ▼
+Prompt Builder
+                │
+                ▼
+Bedrock Claude
+```
+
+---
+
+# Step 1 – Build a Semantic Query
+
+Don't search using just the story title.
+
+Instead build a search query from multiple sources.
+
+Example Story
+
+```text
+As a payment operator,
+I want to reverse an ACH payment
+so that failed settlements can be corrected.
+```
+
+Context
+
+```
+Feature
+Payment Recall
+
+Business Rules
+Settlement cutoff
+
+Acceptance Criteria
+
+Repository
+
+Database tables
+
+APIs
+
+MQ topics
+```
+
+The semantic query becomes
+
+```text
+ACH payment reversal
+
+Payment recall
+
+Settlement
+
+Cutoff
+
+Validation
+
+Retry
+
+Audit
+
+Entitlement
+
+ACH
+
+Business rules
+```
+
+This retrieves much better matches.
+
+---
+
+# Step 2 – Metadata Filtering
+
+Before vector search, reduce the search space.
+
+Example
+
+Instead of searching every document
+
+Search only
+
+```
+Workspace
+
+Payments
+
+Feature
+
+Payment Recall
+
+Document Type
+
+BRD
+
+Excel
+
+API Spec
+
+Version
+
+Latest Approved
+```
+
+Now your vector search is operating on a much smaller and more relevant corpus.
+
+---
+
+# Step 3 – Hybrid Search
+
+Don't rely solely on embeddings.
+
+Use:
+
+```
+BM25 Keyword Search
+
++
+
+Vector Search
+
++
+
+Metadata Filter
+
++
+
+Recency
+
++
+
+Document Priority
+```
+
+Hybrid search generally performs better for enterprise documentation because it combines exact keyword matches with semantic similarity.
+
+---
+
+# Step 4 – Re-rank the Results
+
+Vector search might return:
+
+```
+Chunk A
+
+0.92
+
+Chunk B
+
+0.91
+
+Chunk C
+
+0.90
+
+Chunk D
+
+0.89
+```
+
+But Chunk D might actually be the most useful because it explicitly mentions "ACH reversal."
+
+Apply a reranker that considers:
+
+* Story text
+* Acceptance criteria
+* Business rules
+* User question
+
+This produces a higher-quality final set.
+
+---
+
+# Step 5 – Build the AI Context
+
+Instead of dumping chunks:
+
+```
+Chunk 1
+
+Business Rules
+
+Page 17
+
+------------
+
+Chunk 2
+
+Excel Mapping
+
+Settlement Codes
+
+------------
+
+Chunk 3
+
+API
+
+Recall Endpoint
+
+------------
+
+Chunk 4
+
+Architecture
+
+Payment Service
+
+------------
+
+Chunk 5
+
+Database
+
+PAYMENT_STATUS
+```
+
+The AI now receives organized context.
+
+---
+
+# Chunk Selection Strategy
+
+Never retrieve a fixed number.
+
+Instead allocate a token budget.
+
+Example
+
+```
+Available
+
+40,000 tokens
+
+Workspace
+
+2,000
+
+Feature
+
+5,000
+
+Story
+
+2,000
+
+Repository
+
+8,000
+
+Retrieved Documents
+
+15,000
+
+Instructions
+
+2,000
+
+Expected Response
+
+6,000
+```
+
+This prevents prompt overflow.
+
+---
+
+# Parent Chunk Expansion
+
+Suppose vector search returns
+
+```
+Page 18
+
+Rule 4
+```
+
+Often the surrounding sections are needed.
+
+Automatically include
+
+```
+Page 17
+
+Page 18
+
+Page 19
+```
+
+or
+
+```
+Section
+
+Settlement Validation
+```
+
+instead of just one isolated paragraph.
+
+This gives Claude the surrounding context.
+
+---
+
+# Chunk Relationships
+
+Store links between chunks.
+
+```
+BRD
+
+↓
+
+Business Rules
+
+↓
+
+Validation Rules
+
+↓
+
+Error Codes
+
+↓
+
+Acceptance Criteria
+```
+
+If one chunk is selected, you can optionally include its parent or siblings when there is available token budget.
+
+---
+
+# Repository + Document Fusion
+
+Don't search documents and repositories separately.
+
+Merge them.
+
+Example
+
+Story
+
+↓
+
+Relevant API
+
+↓
+
+Controller
+
+↓
+
+Business Rule
+
+↓
+
+Excel Mapping
+
+↓
+
+Database Table
+
+↓
+
+Previous Story
+
+↓
+
+Technical Design
+
+↓
+
+AI
+
+````
+
+Claude receives a unified context rather than disconnected sources.
+
+---
+
+# Citation Support
+
+Keep references with every retrieved chunk.
+
+Example
+
+```json
+{
+  "document": "BRD.docx",
+  "page": 27,
+  "section": "Payment Validation",
+  "chunkId": "c281",
+  "score": 0.94
+}
+````
+
+Claude can then generate responses like:
+
+> Add validation for settlement cutoff (Source: BRD.docx, Page 27).
+
+This is valuable for auditability.
+
+---
+
+# Dynamic Context Builder
+
+Instead of a static prompt, create a **Context Builder Service**.
+
+```text
+Story
+
+↓
+
+Story Analyzer
+
+↓
+
+Extract Concepts
+
+↓
+
+Find Relevant Documents
+
+↓
+
+Find Relevant Repository Files
+
+↓
+
+Find Similar Stories
+
+↓
+
+Find Architecture Docs
+
+↓
+
+Rank Everything
+
+↓
+
+Assemble Prompt
+
+↓
+
+Bedrock
+```
+
+This makes every AI call deterministic and reproducible.
+
+---
+
+## For your banking platform, I'd go one step further: "Story Knowledge Graph"
+
+Instead of retrieving chunks based only on similarity, build a graph of relationships.
+
+```
+Story
+│
+├── Feature
+├── Epic
+├── Business Rules
+├── BRD Sections
+├── Excel Rows
+├── API Endpoints
+├── Database Tables
+├── Repository Classes
+├── Previous Stories
+├── Test Cases
+├── Confluence Pages
+└── Related Defects
+```
+
+Each node stores both metadata and embeddings. When a user opens **PAY-1023**, the system traverses the graph to gather the most relevant knowledge, then applies semantic ranking to fit within the token budget before sending the prompt to Bedrock.
+
+This graph-based retrieval combines explicit project relationships (for example, "this story belongs to this feature") with semantic search, producing more accurate and explainable context than relying on vector similarity alone. Given your goal of building an enterprise platform for corporate banking, this architecture will scale much better as repositories, documents, and JIRA projects grow.
