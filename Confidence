@@ -1,0 +1,315 @@
+Yes. In fact, this can become one of the strongest differentiators of your platform. Instead of simply asking “Is this story implemented?”, build an Implementation Confidence Engine that estimates how completely a story has been realized in the codebase.
+
+The important design principle is:
+
+Don’t ask the LLM to analyze the entire repository. Use static analysis to gather evidence, then ask the LLM to reason over that evidence.
+
+This keeps the solution fast, inexpensive, auditable, and minimally intrusive.
+
+⸻
+
+High-Level Architecture
+
+             Git Repository
+                    │
+          Incremental Repository Indexer
+                    │
+     ┌──────────────┼───────────────┐
+     │              │               │
+ Static Facts   Semantic Index   Call Graph
+     │              │               │
+     └──────────────┼───────────────┘
+                    │
+           Evidence Retrieval
+                    │
+          Story Implementation Engine
+                    │
+      Evidence + Story + Acceptance Criteria
+                    │
+          Bedrock (Reasoning Only)
+                    │
+      Confidence Score + Missing Items
+
+The AI receives evidence, not raw source code.
+
+⸻
+
+Phase 1 – Build a Static Knowledge Model
+
+Parse repositories into a normalized model.
+
+{
+  "controllers": [],
+  "services": [],
+  "entities": [],
+  "repositories": [],
+  "databaseTables": [],
+  "apiEndpoints": [],
+  "kafkaTopics": [],
+  "rabbitQueues": [],
+  "featureFlags": [],
+  "configuration": [],
+  "businessRules": [],
+  "tests": []
+}
+
+Most of this can be extracted using language-specific parsers (JavaParser, Roslyn, Tree-sitter, etc.) without executing code.
+
+⸻
+
+Phase 2 – Link Stories to Code
+
+Avoid manual mapping whenever possible. Build links using multiple signals:
+
+Signal	Confidence
+JIRA ID in commit message	100%
+JIRA ID in PR title	100%
+Branch name contains story	95%
+Commit references story	95%
+Files modified after story creation	80%
+AI semantic match	70%
+
+The result is a candidate set of files likely related to the story.
+
+⸻
+
+Phase 3 – Build an Evidence Graph
+
+Rather than storing raw files, build a graph such as:
+
+Story
+ │
+ ├── Commit
+ │      │
+ │      ├── Service
+ │      ├── Controller
+ │      ├── Entity
+ │      ├── SQL
+ │      └── Tests
+ │
+ ├── API
+ ├── Database
+ ├── MQ
+ └── Configuration
+
+The graph makes retrieval efficient and explainable.
+
+⸻
+
+Phase 4 – Acceptance Criteria Matching
+
+Convert each acceptance criterion into a checklist.
+
+Example:
+
+Story
+Accept payment
+Acceptance Criteria
+✓ Validate amount
+✓ Validate entitlement
+✓ Audit log
+✓ Retry on timeout
+✓ Publish Kafka event
+
+Now search the indexed evidence.
+
+Example:
+
+Amount Validation
+Service
+PaymentValidator.java
+Confidence
+98%
+----------------------------------
+Audit
+AuditService.java
+Confidence
+95%
+----------------------------------
+Retry
+RetryPolicy.java
+Confidence
+91%
+----------------------------------
+Kafka
+PaymentProducer.java
+Confidence
+94%
+
+The LLM evaluates the evidence rather than searching the repository.
+
+⸻
+
+Phase 5 – Confidence Scoring
+
+Compute confidence from multiple dimensions.
+
+Dimension	Weight
+Acceptance Criteria Coverage	30%
+Business Rule Coverage	20%
+API Coverage	10%
+Database Changes	10%
+Unit Tests	10%
+Integration Tests	10%
+Documentation	5%
+Commit & PR Evidence	5%
+
+Example:
+
+Overall Confidence
+92%
+Business Logic
+96%
+Acceptance Criteria
+90%
+API
+100%
+Database
+82%
+Testing
+74%
+Documentation
+65%
+
+This makes the score explainable.
+
+⸻
+
+Phase 6 – Bedrock as a Reasoning Layer
+
+Instead of sending thousands of lines of code:
+
+Story
+Acceptance Criteria
+Evidence
+API
+Repository Summary
+Modified Classes
+Test Summary
+Commit Summary
+Architecture Summary
+
+Prompt:
+
+Based on the supplied evidence, determine whether the implementation satisfies the story and explain any gaps.
+
+The LLM reasons over structured facts instead of raw code.
+
+⸻
+
+Incremental Indexing (Low Intrusion)
+
+Avoid rescanning the repository.
+
+Use Git to detect changes:
+
+git diff
+↓
+Changed Files
+↓
+Re-index Only Those Files
+↓
+Update Knowledge Graph
+
+This scales well for large repositories.
+
+⸻
+
+Multi-Language Support
+
+Use a language adapter model.
+
+Analyzer
+↓
+Java Adapter
+↓
+.NET Adapter
+↓
+Python Adapter
+↓
+TypeScript Adapter
+↓
+SQL Adapter
+↓
+YAML Adapter
+
+Each adapter produces the same normalized output, allowing the scoring engine to remain language-agnostic.
+
+⸻
+
+Suggested Database
+
+STORY
+REPOSITORY
+CODE_ELEMENT
+CALL_GRAPH
+FILE_SUMMARY
+COMMIT
+PULL_REQUEST
+STORY_CODE_LINK
+STORY_EVIDENCE
+IMPLEMENTATION_SCORE
+IMPLEMENTATION_HISTORY
+CODE_EMBEDDING
+
+⸻
+
+Keep the AI Context Small
+
+Instead of:
+
+800 Java files
+
+Send something like:
+
+Story
+Acceptance Criteria
+Modified APIs
+Modified Classes
+Business Rules
+Database Changes
+Relevant Tests
+Repository Summary
+
+Usually this is only a few thousand tokens.
+
+⸻
+
+A Better Metric Than a Single Confidence Score
+
+Instead of returning only “92%”, return an Implementation Readiness Report.
+
+Implementation Confidence
+92%
+Coverage
+█████████░ 90%
+Acceptance Criteria
+████████░░ 82%
+Business Rules
+██████████ 100%
+Repository Evidence
+█████████░ 88%
+Testing
+███████░░░ 72%
+Documentation
+█████░░░░░ 55%
+
+Below the score, list:
+
+* Acceptance criteria with no supporting evidence.
+* Code elements that appear unrelated or incomplete.
+* Suggested tests to increase confidence.
+* Relevant commits and pull requests that contributed evidence.
+
+This is significantly more actionable than a single percentage and provides reviewers with traceable justification.
+
+Why this is minimally intrusive
+
+For a banking environment, this approach is attractive because:
+
+* The repository is analyzed locally without modifying source code.
+* Most processing is deterministic static analysis, which is inexpensive compared to LLM inference.
+* Only concise summaries and evidence are sent to Bedrock, reducing cost and avoiding unnecessary exposure of proprietary code.
+* Incremental indexing means only changed files are reprocessed, making the system suitable for large monorepos and frequent commits.
+
+Given your earlier design for StoryLens with JIRA, document context, and repository indexing, this implementation confidence engine fits naturally as another service that consumes the same knowledge graph and retrieval infrastructure rather than introducing a separate pipeline.
