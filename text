@@ -1,0 +1,2496 @@
+Below is a **complete implementation-ready prompt** you can give to Claude Code or another AI coding agent. It intentionally stays at the **business, functional, architecture, data, resilience, and testing level** and does **not prescribe code or API endpoint details**.
+
+# ACH Pre-Fund Reservation and Settlement Platform
+
+## 1. Objective
+
+Build an enterprise-grade ACH/NACHA Pre-Fund Reservation and Settlement Processing Platform using modern .NET and React technologies.
+
+The platform receives ACH/NACHA files from an external vendor through a shared file location, validates and parses the files, processes payments in parallel batches, persists transactions and audit information, requests pre-fund reservation/earmarking from a downstream account/fund system, receives asynchronous responses, generates a consolidated response file for the external vendor, receives vendor acknowledgement, and subsequently processes settlement and completes the earmarked-fund lifecycle.
+
+The solution must be:
+
+* Highly resilient
+* Horizontally scalable
+* Multi-instance
+* Dual-data-center capable
+* Active-active capable where infrastructure permits
+* Restartable
+* Idempotent
+* Auditable
+* Reconciliation-friendly
+* Observable
+* Secure
+* Testable
+* Suitable for large ACH/NACHA files
+* Deployable to Kubernetes/OpenShift
+* Designed so downstream messaging infrastructure can be changed without rewriting business logic
+
+Do not create a monolithic implementation. Separate file processing, payment processing, reservation, settlement, messaging, audit, and operational concerns into clear logical components.
+
+---
+
+# 2. Business Workflow
+
+The primary business lifecycle is:
+
+External Vendor
+
+→ ACH/NACHA Pre-Fund Request File
+
+→ File Intake
+
+→ File Ownership
+
+→ File Validation
+
+→ Duplicate Detection
+
+→ NACHA Parsing
+
+→ Batch Processing
+
+→ Payment Persistence
+
+→ Pre-Fund Reservation Request
+
+→ Downstream Reserve/Earmark Processing
+
+→ Reservation Response
+
+→ Response Aggregation
+
+→ Vendor Response File
+
+→ Vendor Acknowledgement
+
+→ Reservation Confirmation/Completion
+
+→ Settlement File/Settlement Request
+
+→ Settlement Validation
+
+→ Settlement Processing
+
+→ Earmark Consumption/Release according to business rules
+
+→ Final Payment and Account State
+
+→ Reconciliation
+
+---
+
+# 3. Architectural Principles
+
+Follow these principles throughout the solution:
+
+1. Never lose an accepted file.
+2. Never process the same file twice.
+3. Never process the same payment twice as a business operation.
+4. Never lose a downstream event.
+5. Never rely on in-memory state for recovery.
+6. Never require the entire file to be loaded into memory.
+7. Never couple database transactions directly to external messaging availability.
+8. Every important business state transition must be durable.
+9. Every balance-changing operation must be auditable.
+10. Every downstream message must be idempotently consumable.
+11. Failed work must be independently retryable.
+12. A failed worker must not permanently block processing.
+13. The application must be restartable from persisted state.
+14. The system must support horizontal scaling.
+15. Business state and technical processing state must be distinguishable.
+
+---
+
+# 4. File Intake
+
+The system receives files in an inbound shared file location.
+
+Multiple application instances may monitor the same directory.
+
+Do not depend on a single application instance being responsible for the directory.
+
+The file intake mechanism must:
+
+* Detect newly available files.
+* Work reliably with network/shared storage.
+* Avoid processing partially copied files.
+* Verify that the file has reached a stable state before processing.
+* Register the file durably.
+* Establish processing ownership.
+* Detect duplicate files.
+* Maintain complete file lifecycle status.
+* Support restart and recovery.
+
+Prefer deterministic polling/stability detection for network file systems rather than relying exclusively on operating-system file watcher events.
+
+---
+
+# 5. File Ownership
+
+Multiple pods or instances may detect the same file.
+
+Only one instance may acquire processing ownership.
+
+Use durable database-backed ownership/lease semantics.
+
+The ownership mechanism must support:
+
+* Atomic ownership acquisition
+* Ownership timeout
+* Worker failure recovery
+* Reassignment
+* No simultaneous processing
+* Auditability
+
+Use terminology such as:
+
+"Acquire Processing Ownership"
+
+rather than relying on a local operating-system file lock.
+
+---
+
+# 6. Incoming File Lifecycle
+
+Maintain a durable incoming-file record.
+
+The lifecycle should support statuses conceptually similar to:
+
+* Detected
+* Registered
+* Validating
+* Validated
+* Duplicate
+* Invalid
+* Parsing
+* Processing
+* Waiting for Reservation Responses
+* Ready for Response
+* Response Generated
+* Response Delivered
+* Waiting for Acknowledgement
+* Acknowledged
+* Completed
+* Failed
+* Manual Review
+
+The exact state model should be refined during implementation.
+
+Every transition must be traceable.
+
+Maintain:
+
+* File identifier
+* Original file name
+* File size
+* File checksum
+* Source
+* Arrival time
+* Processing instance
+* Processing start/end
+* Current state
+* Retry count
+* Batch counts
+* Payment counts
+* Successful counts
+* Failed counts
+* Outstanding response count
+* Correlation identifiers
+* Error information
+
+---
+
+# 7. File Validation
+
+Before parsing business transactions:
+
+* Verify file completeness.
+* Validate file naming conventions.
+* Validate file size.
+* Calculate cryptographic checksum.
+* Detect duplicate file.
+* Validate NACHA structure.
+* Validate file header.
+* Validate batch headers.
+* Validate batch control records.
+* Validate file control records.
+* Validate control totals.
+* Validate record counts.
+* Validate hash/control values where applicable.
+* Validate expected origin/source information.
+
+Invalid files must be quarantined or moved to an appropriate failure location.
+
+Do not silently discard invalid files.
+
+---
+
+# 8. Duplicate File Detection
+
+Duplicate detection must be based on durable business and technical identifiers.
+
+Consider:
+
+* File checksum
+* File name
+* File creation/arrival date
+* Vendor/source
+* NACHA file identification
+* Business date
+* Other vendor-specific identifiers
+
+A file with identical content must not be processed twice.
+
+Duplicate detection must remain effective after application restart or database failover.
+
+---
+
+# 9. Large File Processing
+
+Support very large ACH/NACHA files.
+
+Do not load the complete file into memory.
+
+Use streaming processing.
+
+The file should be read sequentially while batches are identified.
+
+The architecture should support:
+
+* Large files
+* Millions of payment records
+* Constant/bounded memory usage
+* Backpressure
+* Configurable batch size
+* Parallel batch processing
+* Controlled concurrency
+
+---
+
+# 10. NACHA Batch Processing
+
+Respect the NACHA hierarchy:
+
+File Header
+
+→ Batch Header
+
+→ Entry Detail Records
+
+→ Addenda where applicable
+
+→ Batch Control
+
+→ Additional Batches
+
+→ File Control
+
+A batch should become an independently processable unit once its complete boundary has been identified.
+
+The system must not split a logical NACHA batch incorrectly.
+
+---
+
+# 11. Parallel Processing
+
+The file reader should remain sequential while completed logical batches are dispatched to parallel workers.
+
+Conceptually:
+
+File Reader
+
+→ Batch 1
+→ Batch 2
+→ Batch 3
+→ Batch N
+
+Then:
+
+Batch 1 → Worker A
+
+Batch 2 → Worker B
+
+Batch 3 → Worker C
+
+Batch N → Worker N
+
+The worker pool must be configurable.
+
+Support both:
+
+* Multiple workers inside an application instance
+* Multiple application instances/pods
+
+Do not create uncontrolled concurrency.
+
+Database and downstream system capacity must determine the concurrency limit.
+
+---
+
+# 12. Batch Recovery
+
+Every batch must have durable processing state.
+
+Track:
+
+* File ID
+* Batch ID
+* Batch sequence
+* Start/end location or recoverable reference
+* Number of records
+* Processing state
+* Worker ownership
+* Lease
+* Retry count
+* Last error
+* Last successful processing time
+
+If a worker crashes:
+
+* Detect expired ownership.
+* Return the batch to retryable state.
+* Allow another worker to claim it.
+* Do not reprocess successfully completed batches.
+
+---
+
+# 13. Payment Transaction Persistence
+
+Persist every payment as an independent business transaction.
+
+Maintain information including:
+
+* Payment identifier
+* File identifier
+* Batch identifier
+* Trace/reference number
+* Account information
+* Routing information
+* Amount
+* Currency
+* Effective date
+* Payment type
+* Vendor reference
+* Reservation status
+* Settlement status
+* Overall lifecycle state
+* Response code
+* Response message
+* Reservation reference
+* Settlement reference
+* Correlation identifiers
+* Created/updated timestamps
+* Version/concurrency information
+
+Sensitive financial/account information must be protected and masked appropriately.
+
+---
+
+# 14. Database Transaction Boundary
+
+For each successfully processed batch, perform the following as one business transaction where appropriate:
+
+* Persist payment records.
+* Persist payment processing state.
+* Persist audit information.
+* Persist required outbox events.
+* Update batch state.
+* Update file processing statistics.
+
+Commit only when the complete logical transaction succeeds.
+
+Rollback when the transaction fails.
+
+Do not allow a situation where payment data is committed but the corresponding event is permanently lost.
+
+---
+
+# 15. Transactional Outbox
+
+Implement the Transactional Outbox pattern.
+
+Every important downstream event must first be stored durably in the database as part of the same transaction as the business change.
+
+Examples:
+
+* PaymentParsed
+* PreFundReservationRequested
+* ReservationCompleted
+* ReservationRejected
+* VendorResponseGenerated
+* VendorAcknowledgementReceived
+* SettlementReceived
+* SettlementCompleted
+* EarmarkReleased
+* EarmarkConsumed
+* PaymentCompleted
+
+A separate publisher is responsible for delivering pending events to the configured messaging infrastructure.
+
+If messaging infrastructure is unavailable:
+
+* Do not roll back the business transaction.
+* Keep the event pending.
+* Retry with controlled backoff.
+* Record failures.
+* Alert after configured thresholds.
+
+---
+
+# 16. Messaging Abstraction
+
+Business services must not depend directly on a specific messaging technology.
+
+Create a conceptual messaging abstraction supporting:
+
+* Publish
+* Consume
+* Acknowledgement
+* Retry
+* Correlation
+* Idempotency
+* Dead-letter handling
+* Observability
+
+Support development/testing with an in-memory or simulator implementation.
+
+Support production integration with Kafka or the organization's actual messaging platform.
+
+Changing the messaging provider must not require rewriting payment business logic.
+
+---
+
+# 17. Pre-Fund Reservation
+
+The primary business operation is to reserve/earmark funds before settlement.
+
+For every eligible payment:
+
+1. Validate account.
+2. Validate amount.
+3. Validate eligibility.
+4. Validate available funds.
+5. Request reservation.
+6. Receive reservation response.
+7. Persist reservation result.
+8. Store reservation reference.
+9. Update payment state.
+10. Audit the result.
+
+Possible business outcomes include:
+
+* Reserved
+* Insufficient Funds
+* Invalid Account
+* Account Blocked
+* Account Closed
+* Duplicate Request
+* Business Rejection
+* Technical Failure
+* Timeout
+* Retry Pending
+
+---
+
+# 18. Reservation Idempotency
+
+The reservation request must contain a unique business correlation/reference.
+
+Repeated requests must not create multiple earmarks.
+
+Use appropriate business identifiers such as:
+
+* Payment reference
+* Trace number
+* Account
+* Amount
+* Effective date
+* File ID
+* Batch ID
+
+The exact idempotency key must be agreed with the downstream reservation system.
+
+---
+
+# 19. Reservation Response Handling
+
+Responses are asynchronous.
+
+The system must:
+
+* Correlate the response with the original payment.
+* Validate the response.
+* Reject unknown responses.
+* Detect duplicate responses.
+* Persist response codes.
+* Persist response messages.
+* Store reservation reference.
+* Update reservation state.
+* Create audit entry.
+* Generate downstream events where required.
+
+A duplicate response must not change the business result a second time.
+
+---
+
+# 20. Response Aggregation
+
+The system must maintain expected versus received responses.
+
+At file level maintain:
+
+* Expected payment responses
+* Received responses
+* Successful reservations
+* Failed reservations
+* Outstanding responses
+
+A file becomes ready for response generation only when all expected payment responses have reached an acceptable terminal state.
+
+Do not generate a final response file simply because a timeout has occurred unless that behavior is explicitly defined as a business rule.
+
+---
+
+# 21. Vendor Response File
+
+Generate a consolidated response file containing the result of each payment.
+
+Include appropriate information such as:
+
+* Original vendor reference
+* Payment reference
+* Reservation result
+* Response code
+* Response description
+* Reservation reference
+* Processing timestamp
+* Additional vendor-required fields
+
+The generated file must be deterministic and reconciliable with the original file.
+
+---
+
+# 22. Outgoing File Handling
+
+The response file must be written safely.
+
+Never expose a partially written response file to the external vendor.
+
+Prefer:
+
+Temporary file
+
+→ Complete write
+
+→ Validate size/checksum
+
+→ Atomic rename/move
+
+→ Final outbound file name
+
+The response file lifecycle must be recorded.
+
+Archive the final response file and maintain checksum information.
+
+---
+
+# 23. Vendor Acknowledgement
+
+The vendor may send acknowledgement after receiving the response file.
+
+The system must:
+
+* Identify the original response file.
+* Validate acknowledgement.
+* Validate vendor reference.
+* Detect duplicate acknowledgement.
+* Persist acknowledgement.
+* Audit acknowledgement.
+* Update file/payment lifecycle.
+* Trigger the appropriate reservation completion event.
+
+---
+
+# 24. Reservation Confirmation
+
+After valid vendor acknowledgement:
+
+* Confirm the reservation lifecycle.
+* Update payment state.
+* Update file state.
+* Publish confirmation event.
+* Audit the transition.
+
+The precise distinction between temporary earmark, confirmed reservation, release, and settlement consumption must be configurable according to the bank/account-system business contract.
+
+---
+
+# 25. Settlement Processing
+
+Support subsequent settlement processing.
+
+Settlement may arrive through:
+
+* Settlement file
+* Message
+* API
+* Other agreed integration mechanism
+
+Settlement processing must:
+
+1. Receive settlement.
+2. Identify original payment/reservation.
+3. Validate reservation.
+4. Validate amount.
+5. Validate account.
+6. Detect duplicate settlement.
+7. Process settlement.
+8. Consume/release earmark according to business rules.
+9. Update account/payment state.
+10. Generate audit.
+11. Publish settlement events.
+
+---
+
+# 26. Settlement States
+
+Support states conceptually similar to:
+
+* Settlement Pending
+* Settlement Received
+* Settlement Validated
+* Settlement Processing
+* Settlement Completed
+* Settlement Failed
+* Settlement Duplicate
+* Settlement Manual Review
+
+---
+
+# 27. Account and Earmark Model
+
+If a simulator/account component is included, maintain:
+
+* Account
+* Ledger balance
+* Available balance
+* Reserved/earmarked balance
+* Account status
+* Reservation records
+* Account transaction ledger
+
+All balance changes must be transactional.
+
+Do not directly modify available balance without corresponding ledger/reservation records.
+
+---
+
+# 28. Account Simulator
+
+Provide a configurable simulator for functional testing.
+
+Capabilities:
+
+* Create account
+* Search account
+* View account
+* Update account
+* Activate/deactivate account
+* Update single balance
+* Bulk balance update
+* Import accounts from CSV
+* Import accounts from JSON
+* Export accounts
+* Create reservations
+* Release reservations
+* Process settlements
+* View account transactions
+* View reservations
+* View audit history
+
+---
+
+# 29. Simulator Response Control
+
+Testers must be able to configure simulated downstream behavior.
+
+Supported scenarios:
+
+* Successful reservation
+* Insufficient funds
+* Invalid account
+* Account blocked
+* Account closed
+* Duplicate request
+* Timeout
+* Delayed response
+* Technical failure
+* Partial failure
+* Duplicate response
+* Out-of-order response
+
+The simulator should allow scenario configuration by:
+
+* Account
+* Payment reference
+* Amount
+* Request identifier
+* Random percentage
+* Test scenario
+
+---
+
+# 30. Audit
+
+Maintain an immutable audit trail for every significant business action.
+
+Audit should include:
+
+* Entity
+* Entity identifier
+* Event/action
+* Previous state
+* New state
+* Timestamp
+* System/component
+* Correlation ID
+* File ID
+* Batch ID
+* Payment ID
+* Response code
+* JSON attributes
+
+The JSON attributes should capture relevant business context without exposing unnecessary sensitive information.
+
+---
+
+# 31. Retry and Failure Handling
+
+Classify failures into:
+
+### Retryable
+
+* Database transient error
+* Messaging unavailable
+* Network timeout
+* Downstream service unavailable
+* Temporary storage failure
+* Deadlock
+* Temporary resource exhaustion
+
+### Non-Retryable
+
+* Invalid NACHA
+* Invalid account
+* Insufficient funds
+* Duplicate business request
+* Invalid amount
+* Invalid business data
+
+Retryable failures must use:
+
+* Exponential backoff
+* Maximum attempts
+* Retry timestamps
+* Error classification
+* Dead-letter/manual-review state
+* Operational alerts
+
+Do not retry indefinitely.
+
+---
+
+# 32. Worker Lease and Recovery
+
+Each processing unit should have ownership information.
+
+If the worker disappears:
+
+* Detect expired lease.
+* Mark work recoverable.
+* Make it available to another worker.
+* Preserve retry history.
+* Prevent two active workers from processing the same work simultaneously.
+
+---
+
+# 33. Dual Data Center
+
+The architecture must support deployment across two data centers.
+
+Logical model:
+
+```text
+                 External Vendor
+                       |
+                 Global Entry
+                  /         \
+                DC1         DC2
+                 |           |
+              Pods        Pods
+                 \           /
+                  Shared Data
+                       |
+                 Messaging
+```
+
+Application instances must be stateless.
+
+Do not store authoritative processing state inside pod-local storage.
+
+Use shared/replicated durable storage.
+
+---
+
+# 34. Shared File Storage
+
+The design must support network/shared storage.
+
+Do not assume local container disk is durable.
+
+Support:
+
+* NFS
+* Enterprise file share
+* Object storage
+* Other approved shared storage
+
+File processing must remain safe when multiple pods can see the same file.
+
+---
+
+# 35. Concurrency
+
+Control concurrency at multiple levels:
+
+* File processing concurrency
+* Batch worker concurrency
+* Database connection usage
+* Downstream reservation calls
+* Messaging publisher concurrency
+* Settlement processing concurrency
+
+Concurrency must be configurable.
+
+Do not allow application scaling to automatically overload the account/fund system.
+
+---
+
+# 36. Reconciliation
+
+Provide reconciliation at multiple levels.
+
+### File reconciliation
+
+Compare:
+
+* Input records
+* Parsed records
+* Accepted records
+* Rejected records
+* Reservation responses
+* Response file records
+
+### Batch reconciliation
+
+Compare:
+
+* Expected entries
+* Persisted entries
+* Successful entries
+* Failed entries
+
+### Reservation reconciliation
+
+Compare:
+
+* Reservation requested
+* Reservation completed
+* Reservation failed
+* Vendor acknowledged
+
+### Settlement reconciliation
+
+Compare:
+
+* Reservation
+* Settlement
+* Earmark
+* Final account state
+
+Any mismatch must enter an exception/manual-review workflow.
+
+---
+
+# 37. Operational Dashboard
+
+Provide a React-based operational UI.
+
+Dashboard should show:
+
+* Files received
+* Files processing
+* Files completed
+* Files failed
+* Batches processing
+* Payments processed
+* Reservation success/failure
+* Outstanding responses
+* Response files generated
+* Vendor acknowledgements
+* Settlement status
+* Retry counts
+* Dead-letter/manual-review items
+* Processing throughput
+* Processing latency
+
+---
+
+# 38. File Search
+
+Allow operators to search by:
+
+* File ID
+* File name
+* Checksum
+* Vendor
+* Business date
+* Status
+* Correlation ID
+
+Display complete file lifecycle.
+
+---
+
+# 39. Payment Search
+
+Allow search by:
+
+* Payment reference
+* Trace number
+* Account
+* File
+* Batch
+* Reservation reference
+* Settlement reference
+* Status
+* Response code
+* Date range
+
+Display complete payment lifecycle.
+
+---
+
+# 40. Reservation Search
+
+Allow search by:
+
+* Reservation reference
+* Payment reference
+* Account
+* Status
+* Response code
+* Date range
+
+Display:
+
+Request
+
+→ Reservation
+
+→ Vendor Response
+
+→ Acknowledgement
+
+→ Settlement
+
+→ Final State
+
+---
+
+# 41. Test Console
+
+Provide a dedicated test console allowing testers to:
+
+* Seed test accounts.
+* Set account balances.
+* Create reservation scenarios.
+* Configure downstream responses.
+* Trigger settlement.
+* Introduce delays.
+* Introduce failures.
+* Send duplicate responses.
+* Restart/retry processing.
+* Reset test data.
+* View resulting lifecycle.
+
+---
+
+# 42. Test Data Management
+
+Support:
+
+* CSV import
+* JSON import
+* Bulk generation
+* Test data templates
+* Deterministic test identifiers
+* Scenario-based data creation
+* Reset between tests
+
+Large imports should be asynchronous and provide progress.
+
+---
+
+# 43. Functional Testing
+
+Build the application so automated functional tests can verify:
+
+### Happy Path
+
+Valid ACH file
+
+→ Reservation
+
+→ Successful response
+
+→ Response file
+
+→ Vendor acknowledgement
+
+→ Settlement
+
+→ Completed
+
+### Negative Paths
+
+* Duplicate file
+* Invalid file
+* Invalid payment
+* Invalid account
+* Insufficient funds
+* Account blocked
+* Reservation timeout
+* Messaging outage
+* Database failure
+* Worker crash
+* Duplicate message
+* Duplicate response
+* Delayed response
+* Out-of-order response
+* Vendor acknowledgement failure
+* Settlement mismatch
+
+---
+
+# 44. Functional Test Assertions
+
+Tests must verify business outcomes, not only technical responses.
+
+Verify:
+
+* File state
+* Batch state
+* Payment state
+* Reservation state
+* Settlement state
+* Account balance
+* Reserved balance
+* Ledger transactions
+* Audit records
+* Outbox events
+* Published events
+* Response file
+* Vendor acknowledgement
+* Reconciliation results
+
+---
+
+# 45. Test Scenario Definition
+
+Support declarative scenarios conceptually such as:
+
+```text
+Scenario:
+    Successful Pre-Fund Reservation
+
+Given:
+    Account has sufficient balance
+    ACH file contains valid payment
+
+When:
+    File is processed
+
+Then:
+    Payment is persisted
+    Reservation request is created
+    Funds are earmarked
+    Reservation response is successful
+    Vendor response file is generated
+    Vendor acknowledgement is received
+    Reservation becomes confirmed
+```
+
+The same mechanism should support failure scenarios.
+
+---
+
+# 46. Observability
+
+Implement structured logging and distributed tracing.
+
+Every processing operation should be traceable using:
+
+* Correlation ID
+* File ID
+* Batch ID
+* Payment ID
+* Reservation ID
+* Settlement ID
+* Message ID
+
+Provide metrics for:
+
+* Files per hour
+* Payments per second
+* Batch processing duration
+* Reservation latency
+* Settlement latency
+* Outbox backlog
+* Retry count
+* Failed work
+* Outstanding responses
+* Database latency
+* Messaging latency
+
+Use OpenTelemetry-compatible instrumentation.
+
+---
+
+# 47. Security
+
+Protect:
+
+* Account numbers
+* Routing information
+* Payment information
+* Financial balances
+* Vendor data
+
+Implement:
+
+* Encryption in transit
+* Encryption at rest
+* Secret management
+* Access control
+* Audit logging
+* Sensitive-data masking
+* Least privilege
+* Secure file handling
+* Malware/virus scanning where required
+
+Never place sensitive account information in normal application logs.
+
+---
+
+# 48. Deployment
+
+Provide containerized deployment suitable for Kubernetes/OpenShift.
+
+Support:
+
+* Horizontal scaling
+* Readiness checks
+* Liveness checks
+* Graceful shutdown
+* Pod disruption handling
+* Resource limits
+* Configurable worker concurrency
+* Externalized configuration
+* Secret management
+* Persistent/shared storage
+* Multi-instance processing
+
+Application shutdown must allow active transactions to complete or safely return work to recoverable state.
+
+---
+
+# 49. Database Design Principles
+
+Use durable relational persistence for authoritative business state.
+
+Separate logical areas for:
+
+* Incoming files
+* Processing batches
+* Payments
+* Reservations
+* Settlements
+* Account ledger
+* Audit
+* Outbox
+* Retry/work state
+* Reconciliation
+
+Use appropriate:
+
+* Primary keys
+* Foreign keys
+* Unique constraints
+* Indexes
+* Version/concurrency controls
+* Transaction boundaries
+
+Optimize indexes around actual search and processing patterns.
+
+---
+
+# 50. Data Retention
+
+Define configurable retention policies for:
+
+* Original files
+* Response files
+* Payment records
+* Audit records
+* Outbox records
+* Processing logs
+* Reconciliation records
+
+Archive historical information without compromising auditability.
+
+---
+
+# 51. Performance Requirements
+
+The implementation must support configurable performance targets.
+
+Do not hard-code an assumed throughput.
+
+Benchmark against:
+
+* File size
+* Number of payments
+* Number of batches
+* Batch size
+* Database capacity
+* Downstream reservation capacity
+* Messaging throughput
+* Number of pods
+* Number of workers per pod
+
+Produce performance metrics showing where bottlenecks occur.
+
+---
+
+# 52. Graceful Failure Requirements
+
+The following must be safe:
+
+Application restart during file parsing.
+
+Worker crash during batch processing.
+
+Database outage.
+
+Messaging outage.
+
+Reservation service outage.
+
+Vendor acknowledgement delay.
+
+Response file generation failure.
+
+Pod eviction.
+
+Node failure.
+
+Data-center failure.
+
+Duplicate file arrival.
+
+Duplicate payment message.
+
+Duplicate reservation response.
+
+Duplicate settlement.
+
+The system must recover without creating duplicate financial reservations or losing payment state.
+
+---
+
+# 53. Architecture Deliverables
+
+Produce architecture documentation containing:
+
+1. Context diagram
+2. Logical architecture
+3. Component architecture
+4. File processing flow
+5. Parallel batch processing flow
+6. Reservation sequence
+7. Vendor response sequence
+8. Settlement sequence
+9. Failure/retry flow
+10. State machines
+11. Database logical model
+12. Outbox architecture
+13. Dual-DC deployment architecture
+14. Observability architecture
+15. Security architecture
+16. Reconciliation flow
+
+Diagrams should be suitable for import into Confluence/Draw.io and remain editable.
+
+---
+
+# 54. Implementation Quality
+
+The solution should follow:
+
+* Clean Architecture principles
+* Domain-driven design where useful
+* SOLID principles
+* Clear separation of business and infrastructure concerns
+* Dependency inversion
+* Strong typing
+* Configuration-driven behavior
+* Automated testing
+* Structured logging
+* Consistent error handling
+* Consistent validation
+* No business logic embedded in UI
+* No business logic embedded in database triggers unless explicitly justified
+
+Avoid unnecessary abstraction and over-engineering.
+
+---
+
+# 55. Definition of Done
+
+The system is considered complete only when all of the following are demonstrated:
+
+### File Processing
+
+* Large ACH/NACHA file successfully processed.
+* File ownership works across multiple instances.
+* Duplicate files are detected.
+* Invalid files are rejected safely.
+* File processing resumes after restart.
+
+### Parallel Processing
+
+* Multiple batches process concurrently.
+* Worker failure does not lose a batch.
+* Completed batches are not reprocessed.
+* Concurrency is configurable.
+
+### Reservation
+
+* Successful reservation works.
+* Insufficient funds works.
+* Invalid account works.
+* Duplicate reservation is prevented.
+* Reservation response is correlated correctly.
+* Earmark state is correct.
+
+### Vendor Response
+
+* All payment responses are aggregated.
+* Response file is generated only when business completion criteria are met.
+* File is written atomically.
+* Vendor acknowledgement is processed idempotently.
+
+### Settlement
+
+* Settlement is correctly correlated.
+* Duplicate settlement is prevented.
+* Earmark is consumed/released correctly.
+* Final account/payment state is correct.
+
+### Reliability
+
+* Outbox survives messaging outage.
+* Retries work.
+* Worker leases recover.
+* Application restart is safe.
+* Dual-instance processing does not create duplicates.
+
+### Audit
+
+Every important business transition is auditable and contains sufficient JSON business context.
+
+### Reconciliation
+
+Input, reservation, response, acknowledgement, settlement, and final state can be reconciled.
+
+### Testing
+
+Automated functional tests cover:
+
+* Happy path
+* Validation failures
+* Duplicate processing
+* Insufficient funds
+* Downstream failures
+* Messaging failures
+* Worker failures
+* Restart/recovery
+* Duplicate messages
+* Delayed responses
+* Settlement failures
+* Reconciliation exceptions
+
+---
+
+# 56. Final Architectural Principle
+
+Treat the system as a **financial state-transition platform**, not simply as a file parser.
+
+The authoritative lifecycle should conceptually be:
+
+```text
+ACH File
+    ↓
+Payment Request
+    ↓
+Reservation Requested
+    ↓
+Funds Earmarked
+    ↓
+Vendor Response
+    ↓
+Vendor Acknowledgement
+    ↓
+Reservation Confirmed
+    ↓
+Settlement Received
+    ↓
+Earmark Consumed/Released
+    ↓
+Settlement Completed
+    ↓
+Reconciled
+```
+
+Every transition must be:
+
+**durable + idempotent + auditable + recoverable + observable + reconcilable.**
+
+Build the platform so that file processing, reservation, settlement, messaging, and account simulation are independently testable while maintaining one consistent payment lifecycle and authoritative financial state.
+
+
+
+
+For an ACH/NACHA payment platform that handles **pre-funding, settlement, and final commit**, I would design it as a **distributed payment processing system** rather than a simple file processing application. Since this is a banking workload, the priorities are:
+
+1. Never lose a payment.
+2. Never process a payment twice.
+3. Support restart at any point.
+4. Support active-active datacenters.
+5. Every state must be auditable.
+6. Components should be independently scalable.
+
+---
+
+# High-Level Architecture
+
+```text
+                  External Vendor
+                        |
+                 NACHA ACH Files
+                        |
+          +---------------------------+
+          | Secure File Gateway       |
+          | (SFTP/API/AS2)            |
+          +------------+--------------+
+                       |
+                File Landing Zone
+                       |
+          +------------v--------------+
+          | File Intake Service       |
+          | Validation                |
+          | Duplicate Detection       |
+          | Checksum                  |
+          +------------+--------------+
+                       |
+               Store Original File
+                       |
+          +------------v--------------+
+          | File Parsing Service      |
+          | NACHA Parser              |
+          | Batch Validation          |
+          +------------+--------------+
+                       |
+                 Payment Database
+                       |
+        Publish PaymentCreated Event
+                       |
+                Message Broker
+               (Kafka/RabbitMQ)
+```
+
+Then
+
+```text
+                    MQ
+                     |
+         +-----------v------------+
+         | Reserve Fund Service   |
+         +-----------+------------+
+                     |
+          Internal Reservation API
+                     |
+              Reserve Response
+                     |
+         +-----------v------------+
+         | Response Aggregator    |
+         +-----------+------------+
+                     |
+         Generate Vendor Response File
+                     |
+          Upload back to Vendor
+```
+
+Later
+
+```text
+Vendor Settlement File
+         |
+File Intake
+         |
+Settlement Parser
+         |
+Update Payment Status
+         |
+Publish SettlementCompleted Event
+         |
+BCBS Settlement Commit Service
+         |
+BCBS API/MQ
+```
+
+---
+
+# Recommended Microservices
+
+Instead of one large application:
+
+```
+Gateway
+
+File Intake Service
+
+NACHA Parser
+
+Payment Workflow Service
+
+Reserve Fund Service
+
+Settlement Service
+
+BCBS Integration Service
+
+Vendor Response Generator
+
+Notification Service
+
+Audit Service
+
+Reporting Service
+```
+
+Each service owns one responsibility.
+
+---
+
+# Database Design
+
+Separate operational tables.
+
+```
+FILE
+
+FileId
+FileName
+Checksum
+ReceivedTime
+Status
+
+BATCH
+
+BatchId
+FileId
+BatchControl
+Status
+
+PAYMENT
+
+PaymentId
+TraceNumber
+RoutingNumber
+Account
+Amount
+Status
+Version
+
+PAYMENT_EVENT
+
+EventId
+PaymentId
+OldStatus
+NewStatus
+Time
+
+OUTBOX
+
+MessageId
+Payload
+Published
+
+INBOX
+
+MessageId
+Processed
+```
+
+Never overwrite history.
+
+Everything becomes an event.
+
+---
+
+# Payment State Machine
+
+```
+Received
+
+↓
+
+Validated
+
+↓
+
+Queued
+
+↓
+
+Reserve Pending
+
+↓
+
+Reserved
+
+↓
+
+Vendor Response Sent
+
+↓
+
+Settlement Pending
+
+↓
+
+Settlement Received
+
+↓
+
+BCBS Commit Pending
+
+↓
+
+Completed
+```
+
+Failure
+
+```
+Reserve Failed
+
+Settlement Failed
+
+Commit Failed
+
+Manual Review
+```
+
+Every transition should be atomic.
+
+---
+
+# Event Driven Workflow
+
+Instead of synchronous calls.
+
+```
+PaymentParsed
+
+↓
+
+ReserveFundRequested
+
+↓
+
+ReserveFundCompleted
+
+↓
+
+VendorResponseGenerated
+
+↓
+
+SettlementReceived
+
+↓
+
+SettlementCompleted
+
+↓
+
+BCBSCommitRequested
+
+↓
+
+BCBSCommitted
+```
+
+Each service only reacts to events.
+
+---
+
+# Reliability Patterns
+
+## 1. Outbox Pattern
+
+When updating DB
+
+```
+BEGIN
+
+Update Payment
+
+Insert Outbox Message
+
+COMMIT
+```
+
+Background publisher publishes MQ.
+
+No lost messages.
+
+---
+
+## 2. Inbox Pattern
+
+Every consumer stores
+
+```
+MessageId
+
+ProcessedTime
+```
+
+Ignore duplicate deliveries.
+
+---
+
+## 3. Idempotency
+
+Every payment should have
+
+```
+CompanyId
+
+Trace Number
+
+Effective Date
+
+Amount
+
+Sequence
+```
+
+Natural business key.
+
+Every operation should be idempotent.
+
+---
+
+## 4. Saga Pattern
+
+Reservation
+
+↓
+
+Vendor Response
+
+↓
+
+Settlement
+
+↓
+
+Commit
+
+Each step independent.
+
+---
+
+# Multi Datacenter
+
+Prefer Active-Active.
+
+```
+          Load Balancer
+
+       /                 \
+
+DC1                 DC2
+
+Pods                Pods
+
+Kafka               Kafka
+
+Oracle RAC/Postgres Cluster
+```
+
+Requirements
+
+Shared database or replicated database.
+
+Shared MQ.
+
+Distributed cache.
+
+Stateless services.
+
+---
+
+# Kubernetes
+
+Deploy every service as
+
+```
+Deployment
+
+Horizontal Pod Autoscaler
+
+PodDisruptionBudget
+
+Readiness Probe
+
+Liveness Probe
+
+```
+
+No local storage.
+
+Files go to
+
+```
+S3
+
+Azure Blob
+
+NFS
+
+Object Storage
+```
+
+---
+
+# Processing Pipeline
+
+```
+Receive File
+
+↓
+
+Checksum
+
+↓
+
+Duplicate Detection
+
+↓
+
+Virus Scan
+
+↓
+
+Archive
+
+↓
+
+Parse
+
+↓
+
+Business Validation
+
+↓
+
+Persist
+
+↓
+
+Publish Event
+
+↓
+
+Reserve
+
+↓
+
+Aggregate
+
+↓
+
+Generate Response
+
+↓
+
+Send Vendor
+
+↓
+
+Receive Settlement
+
+↓
+
+Commit BCBS
+
+↓
+
+Archive
+```
+
+---
+
+# Large File Processing
+
+Instead of reading the whole file
+
+```
+StreamReader
+
+↓
+
+Batch Reader
+
+↓
+
+100 records
+
+↓
+
+Bulk Insert
+
+↓
+
+Continue
+```
+
+Avoid loading a 2 GB file into memory.
+
+---
+
+# Parallel Processing
+
+Process by Batch.
+
+```
+Batch1
+
+Batch2
+
+Batch3
+
+Batch4
+```
+
+Each partition processed independently.
+
+Use
+
+```
+TPL Dataflow
+
+Channel<T>
+
+BackgroundService
+
+```
+
+in .NET.
+
+---
+
+# Failure Handling
+
+Retry only transient errors.
+
+```
+Database
+
+MQ
+
+HTTP
+
+Timeout
+```
+
+Do not retry
+
+```
+Invalid ACH
+
+Duplicate
+
+Business Validation
+```
+
+Use exponential backoff.
+
+Dead Letter Queue.
+
+---
+
+# Observability
+
+Every payment carries
+
+```
+CorrelationId
+
+PaymentId
+
+TraceNumber
+
+FileId
+
+BatchId
+
+MessageId
+```
+
+Use
+
+OpenTelemetry
+
+Prometheus
+
+Grafana
+
+Elastic
+
+Jaeger
+
+---
+
+# Security
+
+Encrypt
+
+Files at Rest
+
+TLS
+
+Secrets in Kubernetes Secret or Vault
+
+Field-level encryption
+
+Account masking
+
+PII masking
+
+Digital signatures
+
+Checksum verification
+
+---
+
+# Performance
+
+For 1 million payments/day
+
+Multiple parser pods
+
+Partition by File
+
+Bulk database inserts
+
+Batch MQ publishing
+
+Asynchronous APIs
+
+Horizontal scaling
+
+---
+
+# Suggested Technology Stack (.NET)
+
+| Layer                 | Recommendation                                    |
+| --------------------- | ------------------------------------------------- |
+| Runtime               | .NET 10 LTS (or current supported LTS)            |
+| Messaging             | Kafka (preferred) or RabbitMQ                     |
+| Database              | Oracle or PostgreSQL                              |
+| ORM                   | EF Core + Dapper for bulk operations              |
+| Caching               | FusionCache + Redis                               |
+| Object Storage        | S3/Azure Blob/MinIO                               |
+| Workflow              | Stateless state machine or event-driven Saga      |
+| Observability         | OpenTelemetry + Prometheus + Grafana              |
+| Logging               | Serilog                                           |
+| Resilience            | Polly                                             |
+| Background Processing | BackgroundService + Channels + TPL Dataflow       |
+| Deployment            | Kubernetes/OpenShift                              |
+| Configuration         | Azure App Configuration or Consul                 |
+| Secrets               | HashiCorp Vault or cloud-native secret management |
+
+# Enterprise Reference Architecture
+
+For a high-volume financial institution, I recommend an event-driven architecture with these logical layers:
+
+```text
+                    Ingress Layer
+     SFTP/API/AS2 → File Gateway → File Intake
+
+                           │
+                           ▼
+                Validation & Parsing Layer
+      Duplicate Detection → NACHA Parser → Business Validation
+
+                           │
+                           ▼
+                  Payment Orchestration Layer
+      State Machine → Outbox → Event Bus → Saga Coordination
+
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+ Reserve Fund      Response Generator   Settlement Processor
+    Service              Service              Service
+        │                  │                  │
+        └──────────────┬───┴──────────────────┘
+                       ▼
+              BCBS Integration Service
+
+                           │
+                           ▼
+           Audit • Reporting • Monitoring
+```
+
+This architecture provides:
+
+* End-to-end event sourcing and auditability.
+* Exactly-once business processing through Outbox/Inbox and idempotency patterns.
+* Stateless services that can scale horizontally across multiple data centers.
+* Clear separation of concerns, allowing reserve processing, settlement, response generation, and external integrations to evolve independently.
+* High resilience, with automatic recovery from pod, node, or datacenter failures while preserving payment integrity.
+
+For a banking-grade ACH/NACHA platform expected to process hundreds of thousands to millions of transactions daily, this architecture aligns well with proven enterprise payment systems and can meet high availability, disaster recovery, audit, and regulatory requirements.
+
+
+
+For a **pre-fund reservation** workflow, the business lifecycle is different from settlement. The reserved funds are **earmarked first**, and only after the external vendor acknowledges successful receipt of the response should the reservation be considered finalized. Below is a concise design specification.
+
+# ACH/NACHA Pre-Fund Reservation Processing
+
+## Business Objective
+
+Build a resilient, distributed .NET payment platform that processes ACH/NACHA pre-fund reservation requests, reserves (earmarks) funds, generates vendor response files, receives vendor acknowledgements, and completes the reservation lifecycle with exactly-once processing and full auditability.
+
+---
+
+# Processing Flow
+
+## Phase 1 – File Intake
+
+1. Multiple application instances monitor the inbound shared file system.
+2. Detect newly arrived ACH/NACHA files.
+3. Acquire exclusive ownership by atomically inserting or updating the `INCOMING_FILE` record.
+4. Validate:
+
+   * File stability (not still being copied)
+   * SHA-256 checksum
+   * Duplicate file detection
+   * File naming convention
+   * ACH/NACHA structure (headers, trailers, control totals)
+5. Archive the original file.
+6. Update file status to **VALIDATED**.
+
+---
+
+## Phase 2 – Parse and Persist
+
+Read the file sequentially and build configurable batches.
+
+For each batch:
+
+* Parse ACH records
+* Validate business rules
+* Validate customer/account references
+* Detect duplicate payment requests
+
+Execute a single database transaction:
+
+* Insert payment requests into `PAYMENT_TRANSACTION`
+* Insert audit records
+* Insert `ReserveFundRequested` events into `EVENTS_OUTBOX`
+* Update batch and file progress
+
+Commit once.
+
+---
+
+## Phase 3 – Reserve (Earmark) Funds
+
+The Outbox Publisher publishes `ReserveFundRequested` events to Kafka.
+
+The Reservation Service:
+
+* Validates account availability
+* Checks available balance
+* Places an earmark (hold) for the requested amount
+* Generates a reservation result
+
+Possible outcomes:
+
+* Reserved
+* Insufficient Funds
+* Invalid Account
+* Closed Account
+* Duplicate Request
+* Technical Failure
+
+The Reservation Service publishes a `ReserveFundCompleted` event.
+
+---
+
+## Phase 4 – Update Reservation Status
+
+The consumer processes the reservation response.
+
+Within one transaction:
+
+* Update payment reservation status
+* Store reservation reference
+* Store response code
+* Create audit record
+* Update processing statistics
+
+Typical payment states:
+
+```text
+RECEIVED
+
+VALIDATED
+
+RESERVE_PENDING
+
+RESERVED
+
+RESERVE_FAILED
+
+RESPONSE_PENDING
+
+ACK_PENDING
+
+COMPLETED
+```
+
+---
+
+## Phase 5 – Generate Vendor Response File
+
+When every payment in the inbound file has reached a terminal reservation state:
+
+* Reserved
+* Failed
+
+Generate a consolidated response file containing:
+
+* Original payment reference
+* Reservation status
+* Reservation reference
+* Response code
+* Error description (if applicable)
+
+Write the file atomically to the outbound directory.
+
+Update file status to:
+
+```text
+RESPONSE_SENT
+```
+
+---
+
+## Phase 6 – Vendor Acknowledgement
+
+The external vendor returns an acknowledgement indicating successful receipt and acceptance of the response file.
+
+Validate:
+
+* File reference
+* Correlation ID
+* Vendor response integrity
+
+Update:
+
+```text
+ACK_RECEIVED
+```
+
+---
+
+## Phase 7 – Complete Reservation
+
+Only after a valid acknowledgement:
+
+Publish:
+
+```text
+ReservationConfirmed
+```
+
+The Reservation Service changes the earmark from **temporary** to **confirmed** (or updates its lifecycle according to business rules).
+
+Update payment status:
+
+```text
+COMPLETED
+```
+
+Update file status:
+
+```text
+COMPLETED
+```
+
+---
+
+# Database Transaction Boundaries
+
+Every business state transition should execute within a single transaction.
+
+Examples:
+
+### Parse Transaction
+
+* Insert payment
+* Insert audit
+* Insert Outbox event
+* Update batch progress
+
+Commit
+
+---
+
+### Reservation Response Transaction
+
+* Update reservation status
+* Update payment
+* Insert audit
+* Insert Outbox event
+
+Commit
+
+---
+
+### Vendor Acknowledgement Transaction
+
+* Update acknowledgement status
+* Update payment
+* Insert audit
+* Insert completion event
+
+Commit
+
+---
+
+# Audit Requirements
+
+Every state transition should create an immutable audit entry.
+
+Capture:
+
+* Event Name
+* Previous State
+* Current State
+* Timestamp
+* Correlation ID
+* File ID
+* Batch ID
+* Payment ID
+* JSON snapshot of business attributes
+
+---
+
+# Idempotency
+
+Business keys should uniquely identify a reservation request.
+
+Recommended business key:
+
+* Company ID
+* Effective Date
+* Trace Number
+* Amount
+
+Every inbound file, Kafka message, and vendor acknowledgement should be processed idempotently.
+
+---
+
+# Failure Recovery
+
+Recover at the batch level.
+
+Never reread successfully completed batches.
+
+Recovery should support:
+
+* Parser restart
+* Worker restart
+* Kafka outage
+* Reservation service outage
+* Vendor acknowledgement delay
+
+Unpublished Outbox events remain in the database until successfully delivered.
+
+---
+
+# High-Level Business State Machine
+
+```text
+FILE_RECEIVED
+        │
+        ▼
+FILE_VALIDATED
+        │
+        ▼
+PAYMENTS_PARSED
+        │
+        ▼
+RESERVE_REQUESTED
+        │
+        ▼
+FUNDS_EARMARKED
+        │
+        ▼
+VENDOR_RESPONSE_SENT
+        │
+        ▼
+VENDOR_ACK_RECEIVED
+        │
+        ▼
+RESERVATION_CONFIRMED
+        │
+        ▼
+COMPLETED
+```
+
+If any reservation fails, that payment reaches a terminal failure state while other payments continue processing independently. The response file includes both successful and failed reservation results, allowing the vendor to reconcile each request.
+
+This workflow separates **technical processing** (parsing, persistence, messaging) from the **business lifecycle** (request → earmark → response → acknowledgement → reservation confirmation), resulting in a resilient, auditable, and scalable pre-fund reservation platform suitable for multi-instance, dual-data-center deployment.
