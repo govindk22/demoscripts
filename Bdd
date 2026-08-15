@@ -1,0 +1,386 @@
+Absolutely. For a Cucumber-driven BDD framework, I recommend defining Journey, Keywords, and Tags as three distinct concepts:
+
+* Journey = the end-to-end business workflow.
+* Keywords = standardized vocabulary used to classify/search/filter business and technical behavior.
+* Tags = machine-readable metadata attached to Feature/Scenario/Step for execution, traceability, reporting, and filtering.
+
+1. Journey
+
+A Journey represents a complete business outcome from the user’s/business process perspective.
+
+A journey should answer:
+
+What business process are we validating, and what path does it take across multiple systems?
+
+Journey definition
+
+Journey
+ ├── Journey ID
+ ├── Journey Name
+ ├── Journey Version
+ ├── Domain
+ ├── Business Capability
+ ├── Business Process
+ ├── Business Objective
+ ├── Criticality
+ ├── Actor
+ ├── Entry Point
+ ├── Exit Point
+ ├── Systems Involved
+ ├── Dependencies
+ ├── Scenarios
+ ├── Business Outcomes
+ └── Failure Outcomes
+
+Recommended Journey attributes
+
+Attribute	Purpose	Example
+journeyId	Unique identifier	ACH-JRN-001
+journeyName	Business journey	ACH Payment Processing
+version	Journey version	1.0
+domain	Business domain	CashManagement
+capability	Business capability	PaymentProcessing
+businessProcess	Business process	ACHPayment
+objective	Expected business objective	Successfully process ACH payment
+criticality	Business importance	Critical
+actor	Who initiates journey	CorporateUser
+entryPoint	Starting point	Payment UI
+exitPoint	End state	BankAccepted
+systems	Systems participating	UI, PaymentAPI, Authorization, BankAdapter
+expectedOutcome	Successful business outcome	PaymentAccepted
+
+⸻
+
+2. Keywords
+
+Keywords should describe what a step or scenario is doing.
+
+Unlike tags, keywords should be a controlled vocabulary.
+
+For example:
+
+CREATE
+SUBMIT
+VALIDATE
+AUTHORIZE
+RELEASE
+PUBLISH
+CONSUME
+TRANSFORM
+PERSIST
+QUERY
+VERIFY
+REJECT
+RETRY
+WAIT
+POLL
+NOTIFY
+
+You can have several keyword categories.
+
+Business keywords
+
+CREATE
+SUBMIT
+AUTHORIZE
+RELEASE
+CANCEL
+REJECT
+APPROVE
+DECLINE
+VERIFY
+SETTLE
+REFUND
+
+Technical keywords
+
+API
+UI
+DATABASE
+KAFKA
+RABBITMQ
+FILE
+SFTP
+CACHE
+EXTERNAL_SYSTEM
+
+Validation keywords
+
+VALIDATE
+ASSERT
+VERIFY
+COMPARE
+RECONCILE
+
+Workflow keywords
+
+START
+END
+WAIT
+POLL
+RETRY
+ASYNC
+PARALLEL
+DEPENDENCY
+
+Data keywords
+
+CREATE_DATA
+LOAD_DATA
+UPDATE_DATA
+DELETE_DATA
+SEED_DATA
+GENERATE_DATA
+
+Example
+
+SUBMIT + API
+VALIDATE + BUSINESS
+AUTHORIZE + BUSINESS
+PUBLISH + KAFKA
+VERIFY + EXTERNAL_SYSTEM
+
+This allows your report to say:
+
+Payment Journey
+CREATE
+   ↓
+SUBMIT [API]
+   ↓
+VALIDATE [BUSINESS]
+   ↓
+AUTHORIZE [BUSINESS]
+   ↓
+PUBLISH [KAFKA]
+   ↓
+VERIFY [EXTERNAL_SYSTEM]
+
+⸻
+
+3. Tags
+
+Tags are the metadata attached to Cucumber Features/Scenarios.
+
+I recommend grouping tags by purpose rather than creating hundreds of unrelated tags.
+
+Journey tags
+
+@journey=ACH_PAYMENT
+@journeyId=ACH-JRN-001
+@journeyVersion=1.0
+
+Business tags
+
+@domain=CashManagement
+@capability=PaymentProcessing
+@businessProcess=ACH
+@criticality=Critical
+@actor=CorporateUser
+
+Test tags
+
+@testType=E2E
+@testLevel=System
+@priority=P1
+
+Environment tags
+
+@environment=QA
+@region=US
+
+Traceability tags
+
+@requirement=REQ-PAY-001
+@story=PAY-123
+@defect=BUG-456
+
+Execution tags
+
+@timeout=120s
+@retry=2
+@parallel=true
+
+Technical tags
+
+@system=PaymentAPI
+@service=PaymentService
+@component=AuthorizationEngine
+
+⸻
+
+4. One complete example
+
+Let’s take an ACH Payment Processing Journey.
+
+Business journey
+
+ACH Payment Processing
+        │
+        ▼
+Create Payment
+        │
+        ▼
+Submit Payment
+        │
+        ▼
+Validate Entitlement
+        │
+        ▼
+Validate Payment
+        │
+        ├───────────────┐
+        ▼               ▼
+ Authorization     Compliance
+        │               │
+        └───────┬───────┘
+                ▼
+             Release
+                │
+                ▼
+          Publish to Bank
+                │
+                ▼
+          Bank Acceptance
+
+Cucumber example
+
+@journey=ACH_PAYMENT
+@journeyId=ACH-JRN-001
+@journeyVersion=1.0
+@domain=CashManagement
+@capability=PaymentProcessing
+@businessProcess=ACH
+@criticality=Critical
+@actor=CorporateUser
+@testType=E2E
+@testLevel=System
+@priority=P1
+@environment=QA
+@requirement=REQ-PAY-001
+Feature: ACH Payment Processing
+  As a corporate banking customer
+  I want to submit an ACH payment
+  So that the payment can be processed by the bank
+  @scenarioId=ACH-SCN-001
+  @scenarioType=HappyPath
+  @expectedOutcome=PaymentAccepted
+  Scenario: Successfully submit and release ACH payment
+    Given a valid corporate payment is created
+    When the payment is submitted
+    And the payment entitlement is validated
+    And the payment is validated
+    And the payment is authorized
+    And the payment is released
+    And the payment is published to the bank
+    Then the bank should accept the payment
+
+⸻
+
+5. Add keywords to each step
+
+I would maintain a separate metadata mapping rather than cluttering Gherkin with tags on every line.
+
+For example:
+
+Step	Keyword	System	Component	Expected Outcome
+Create payment	CREATE	Payment UI	Payment UI	Payment Created
+Submit payment	SUBMIT	Payment API	Payment Service	Payment Submitted
+Validate entitlement	VALIDATE	Payment API	Entitlement Service	Entitled
+Validate payment	VALIDATE	Payment API	Validation Service	Valid
+Authorize	AUTHORIZE	Payment API	Authorization Engine	Authorized
+Release	RELEASE	Payment API	Payment Service	Released
+Publish to bank	PUBLISH	Kafka	Bank Adapter	Published
+Bank accepts	VERIFY	Bank	External System	Accepted
+
+⸻
+
+6. How your report can use this
+
+Instead of a normal Cucumber report:
+
+Feature: ACH Payment Processing
+Scenario: Successfully submit and release ACH payment
+    ✓ Given
+    ✓ When
+    ✓ And
+    ✓ And
+    ✓ And
+    ✓ And
+    ✓ Then
+
+your custom report becomes:
+
+╔════════════════════════════════════════════════════╗
+║             ACH PAYMENT JOURNEY                    ║
+╠════════════════════════════════════════════════════╣
+║ Journey ID       ACH-JRN-001                       ║
+║ Domain           Cash Management                   ║
+║ Capability       Payment Processing                ║
+║ Criticality      CRITICAL                          ║
+║ Environment      QA                                ║
+║ Result           ✓ PASSED                          ║
+╚════════════════════════════════════════════════════╝
+                    CREATE
+                      │
+                      ▼
+                SUBMIT [API]
+                      │
+                      ▼
+             VALIDATE [ENTITLEMENT]
+                      │
+                      ▼
+              VALIDATE [PAYMENT]
+                      │
+                      ▼
+              AUTHORIZE [ENGINE]
+                      │
+                      ▼
+                RELEASE
+                      │
+                      ▼
+             PUBLISH [KAFKA]
+                      │
+                      ▼
+             VERIFY [BANK]
+                      │
+                      ▼
+              ✓ PAYMENT ACCEPTED
+
+⸻
+
+7. Recommended hierarchy
+
+The most important part is to establish a consistent hierarchy:
+
+DOMAIN
+  │
+  └── CAPABILITY
+        │
+        └── BUSINESS PROCESS
+              │
+              └── JOURNEY
+                    │
+                    ├── SCENARIO
+                    │
+                    └── STEPS
+                          │
+                          ├── KEYWORD
+                          ├── SYSTEM
+                          ├── SERVICE
+                          ├── COMPONENT
+                          ├── EXPECTED OUTCOME
+                          └── ACTUAL OUTCOME
+
+For your Java and .NET Core implementation, I would make this hierarchy language-neutral and have both Cucumber implementations produce the same Journey Event/Metadata model. That gives you one reporting platform even when the underlying automation is split between Java and .NET.
+
+1. Define a standard Journey model with Journey ID, name, domain, capability, business process, criticality, actor, entry/exit points, and expected outcome.
+2. Establish a controlled Keyword library for actions such as CREATE, SUBMIT, VALIDATE, AUTHORIZE, RELEASE, PUBLISH, VERIFY, RECONCILE, RETRY, and WAIT.
+3. Define standard Tag categories for journey, business, test, environment, requirement, technical, execution, and traceability metadata.
+4. Create a common metadata schema that works consistently across Java Cucumber and .NET Core Cucumber implementations.
+5. Add Scenario and Step IDs to uniquely identify every business workflow and individual action.
+6. Capture system, service, component, API, database, messaging, and external-system information for each step.
+7. Support step dependencies, sequence, parallel groups, optional steps, retries, and asynchronous/wait operations.
+8. Capture expected outcome, actual outcome, business outcome, technical outcome, duration, and failure reason.
+9. Build a Journey Report showing the complete business flow, step status, system interactions, failures, KPIs, and traceability.
+10. Integrate execution ID, correlation ID, trace ID, environment, Kubernetes/OpenShift details, logs, screenshots, and API evidence for end-to-end troubleshooting.
+.
