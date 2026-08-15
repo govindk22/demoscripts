@@ -1,0 +1,2602 @@
+Absolutely. The simulator should be treated as a **first-class downstream-system simulator**, not merely an account CRUD application. It should model the account, earmark, reservation, acknowledgement, and settlement lifecycle closely enough that your ACH application can be functionally tested without connecting to the real fund-management system.
+
+# ACH Pre-Fund and Settlement Simulator
+
+## 1. Objective
+
+Build an enterprise-quality **ACH Pre-Fund and Settlement Simulator** that acts as a configurable downstream financial/account system for functional, integration, regression, resilience, and performance testing of the ACH Pre-Fund Reservation and Settlement application.
+
+The simulator must provide:
+
+* Account management
+* Account balance management
+* Available/ledger/reserved balance tracking
+* Pre-fund reservation/earmark processing
+* Reservation response simulation
+* Vendor response/acknowledgement simulation
+* Settlement processing
+* Earmark completion/release/consumption
+* Account transaction ledger
+* Audit history
+* Configurable success/failure behavior
+* Delayed and asynchronous responses
+* Duplicate/out-of-order response simulation
+* CSV/JSON test-data loading
+* Bulk account balance operations
+* Test scenario management
+* Operational UI
+* Search and filtering
+* Reconciliation
+* Reset/seed functionality
+* Integration with the ACH application through a configurable messaging adapter
+* In-memory mode for local development
+* Kafka or enterprise messaging integration for integration testing
+
+The simulator must behave like a realistic financial system and must not be implemented as simple CRUD around a balance field.
+
+---
+
+# 2. Primary Business Purpose
+
+The simulator represents the downstream system responsible for managing accounts and earmarking/reserving funds.
+
+The primary lifecycle is:
+
+```text
+Account
+   ↓
+Available Funds
+   ↓
+Pre-Fund Reservation Request
+   ↓
+Validate Account
+   ↓
+Validate Available Funds
+   ↓
+Create Earmark
+   ↓
+Reservation Response
+   ↓
+Vendor Acknowledgement
+   ↓
+Reservation Confirmation
+   ↓
+Settlement
+   ↓
+Consume / Release Earmark
+   ↓
+Final Account State
+```
+
+The exact accounting treatment of settlement must be configurable to match the actual downstream system contract.
+
+---
+
+# 3. Technology
+
+Use:
+
+* Backend: ASP.NET Core / .NET 10
+* Frontend: React + TypeScript
+* Database: PostgreSQL preferred
+* Local development database: SQLite may be supported
+* ORM/data access: appropriate .NET relational data-access technology
+* Background processing: .NET hosted/background services
+* Messaging: provider abstraction
+* Production/integration messaging: Kafka or enterprise MQ
+* Local testing: In-memory messaging implementation
+* Container: Docker
+* Deployment: Kubernetes/OpenShift compatible
+* Documentation: OpenAPI and architecture documentation
+
+Do not expose code-level implementation details in the functional architecture.
+
+---
+
+# 4. Architectural Principles
+
+The simulator must follow these principles:
+
+1. Account balances must be transactionally consistent.
+2. Every balance-changing operation must have a ledger entry.
+3. Every reservation must be idempotent.
+4. Every settlement must be idempotent.
+5. Duplicate messages must not create duplicate financial changes.
+6. Every important state transition must be auditable.
+7. Current balance must be reconcilable from transaction history.
+8. Test behavior must be deterministic when configured.
+9. Failures and delays must be configurable.
+10. The simulator must support concurrent requests safely.
+11. No financial state should depend only on in-memory state.
+12. Simulator restarts must not lose account or reservation state.
+13. Test data must be easily resettable.
+14. Business rules must be configurable where the real downstream contract is not yet finalized.
+
+---
+
+# 5. Account Management
+
+Provide account lifecycle management.
+
+Account information should conceptually contain:
+
+* Account identifier
+* Account number
+* Account name
+* Routing information
+* Currency
+* Account type
+* Account status
+* Ledger balance
+* Reserved/earmarked balance
+* Available balance
+* Created timestamp
+* Updated timestamp
+* Version/concurrency information
+
+Account status should support states such as:
+
+* Active
+* Blocked
+* Suspended
+* Closed
+
+Only eligible accounts should be allowed to reserve funds.
+
+---
+
+# 6. Balance Model
+
+Maintain three important concepts:
+
+### Ledger Balance
+
+The financial balance before considering active earmarks.
+
+### Reserved/Earmarked Balance
+
+The portion currently reserved for pending pre-fund obligations.
+
+### Available Balance
+
+The amount available for new reservations.
+
+Conceptually:
+
+```text
+Available Balance
+=
+Ledger Balance
+-
+Reserved Balance
+```
+
+The exact calculation must be configurable if the real downstream account system has different rules.
+
+Do not allow independent manual modification of derived balances without recording an appropriate financial transaction.
+
+---
+
+# 7. Account Ledger
+
+Maintain a complete account transaction history.
+
+Transaction categories should include:
+
+* Opening Balance
+* Manual Adjustment
+* Reservation/Earmark
+* Reservation Release
+* Settlement
+* Refund
+* Reversal
+* Other configured adjustment
+
+Each ledger transaction should capture:
+
+* Account
+* Transaction type
+* Reference
+* Amount
+* Direction
+* Balance before
+* Balance after
+* Reserved balance before
+* Reserved balance after
+* Available balance before
+* Available balance after
+* Timestamp
+* Correlation identifier
+* Business reference
+* JSON attributes where required
+
+The ledger must support reconciliation.
+
+---
+
+# 8. Manual Balance Management
+
+The UI must allow an authorized tester/operator to update an account balance.
+
+Support:
+
+### Single Account
+
+* Select account
+* Enter amount
+* Select operation
+* Confirm change
+
+Operations:
+
+* Set
+* Add
+* Subtract
+
+Every adjustment must create an account transaction and audit record.
+
+Never silently overwrite financial state.
+
+---
+
+# 9. Bulk Balance Update
+
+Support bulk balance updates using:
+
+* CSV
+* JSON
+
+Workflow:
+
+```text
+Upload
+   ↓
+Validate
+   ↓
+Preview
+   ↓
+Show valid/invalid records
+   ↓
+Confirm
+   ↓
+Process
+   ↓
+Result
+```
+
+Display:
+
+* Total records
+* Valid records
+* Invalid records
+* Successfully processed
+* Failed
+* Duplicate
+* Error reasons
+
+Allow failed records to be exported for correction.
+
+Large imports should be processed asynchronously.
+
+---
+
+# 10. CSV Import
+
+Support account/test-data import from CSV.
+
+Allow fields such as:
+
+* Account number
+* Account name
+* Routing number
+* Currency
+* Account status
+* Ledger balance
+* Optional initial configuration
+
+Validate:
+
+* Required fields
+* Data formats
+* Duplicate account identifiers
+* Valid amounts
+* Supported currencies
+* Account status
+
+Provide a validation preview before committing large imports.
+
+---
+
+# 11. JSON Import
+
+Support equivalent JSON test-data loading.
+
+The JSON structure must support:
+
+* Account
+* Initial balance
+* Account status
+* Optional test configuration
+
+The import behavior must be consistent between CSV and JSON.
+
+---
+
+# 12. Account Search
+
+Provide search and filtering by:
+
+* Account number
+* Account name
+* Routing number
+* Status
+* Currency
+* Balance range
+* Available balance
+* Reserved balance
+
+Support pagination and sorting.
+
+---
+
+# 13. Account Detail View
+
+The UI should provide a complete account view.
+
+Display:
+
+```text
+Account
+Status
+
+Ledger Balance
+Reserved Balance
+Available Balance
+```
+
+Provide tabs/sections for:
+
+* Account information
+* Transactions
+* Reservations
+* Settlements
+* Audit
+* Simulation history
+
+---
+
+# 14. Pre-Fund Reservation
+
+The simulator must expose a realistic reservation operation.
+
+Input conceptually includes:
+
+* Request identifier
+* Account
+* Payment reference
+* Amount
+* Currency
+* Effective date
+* File/batch reference
+* Correlation identifier
+
+The simulator must:
+
+1. Validate request.
+2. Validate account.
+3. Validate account status.
+4. Validate currency.
+5. Check available funds.
+6. Detect duplicate request.
+7. Apply configured simulation rules.
+8. Create reservation if successful.
+9. Update reserved balance.
+10. Record account transaction.
+11. Create audit event.
+12. Generate response.
+13. Publish/return response according to configured messaging mode.
+
+---
+
+# 15. Reservation Idempotency
+
+The same reservation request must never create multiple earmarks.
+
+Use an appropriate business idempotency key.
+
+The simulator must support repeated requests and return the previously established result where appropriate.
+
+Testers must be able to intentionally send duplicate requests to verify that the ACH application handles them correctly.
+
+---
+
+# 16. Reservation States
+
+Support states such as:
+
+* Requested
+* Processing
+* Reserved
+* Rejected
+* Failed
+* Expired
+* Released
+* Confirmed
+* Settlement Pending
+* Settled
+
+The exact state transitions must be configurable and documented.
+
+---
+
+# 17. Successful Reservation
+
+Example business behavior:
+
+```text
+Account Ledger       100,000
+Existing Reserved     10,000
+Available              90,000
+
+Reservation            20,000
+
+New Reserved           30,000
+New Available          70,000
+```
+
+Create:
+
+* Reservation record
+* Ledger/account transaction
+* Audit event
+* Response event
+
+---
+
+# 18. Insufficient Funds
+
+If available funds are insufficient:
+
+```text
+Reservation = Rejected
+
+Response Code = INSUFFICIENT_FUNDS
+```
+
+Do not change account balance.
+
+Create:
+
+* Reservation response
+* Audit
+* Simulation record
+
+---
+
+# 19. Invalid Account
+
+If the account is invalid, blocked, suspended, or closed according to configuration:
+
+Return an appropriate response without modifying funds.
+
+---
+
+# 20. Duplicate Reservation
+
+A duplicate request must:
+
+* Be detected
+* Not create a second earmark
+* Return the original or configured duplicate response
+* Be audited
+
+---
+
+# 21. Configurable Simulation Rules
+
+Provide a rules engine for controlling simulator behavior.
+
+Rules may match:
+
+* Account
+* Payment reference
+* Reservation ID
+* Amount range
+* Currency
+* Request ID
+* Random percentage
+* Scenario name
+
+Rules can specify:
+
+* Success
+* Insufficient funds
+* Invalid account
+* Technical failure
+* Timeout
+* Delayed response
+* Duplicate response
+* Out-of-order response
+* Custom response code
+
+Rules must be enabled/disabled without changing application code.
+
+---
+
+# 22. Response Delay Simulation
+
+Allow testers to configure:
+
+* Immediate response
+* Fixed delay
+* Random delay
+* Long-running response
+* Timeout/no response
+
+Example scenarios:
+
+```text
+Immediate Success
+5-second delay
+30-second delay
+2-minute delay
+No response
+```
+
+This is required to test outstanding-response handling in the ACH application.
+
+---
+
+# 23. Technical Failure Simulation
+
+Support controlled technical failures such as:
+
+* Service unavailable
+* Timeout
+* Database failure simulation
+* Messaging failure
+* Connection failure
+* Temporary processing error
+
+Failures must be deterministic when configured for a specific test.
+
+---
+
+# 24. Duplicate Response Simulation
+
+Allow the simulator to intentionally send:
+
+```text
+Response 1
+Response 1 again
+```
+
+The ACH application must be able to prove that the duplicate does not result in a duplicate reservation or state transition.
+
+---
+
+# 25. Out-of-Order Response Simulation
+
+Allow multiple requests to complete in a different order than they were received.
+
+Example:
+
+```text
+Request A
+Request B
+Request C
+
+Responses:
+
+C
+A
+B
+```
+
+The ACH application must not depend on response ordering unless the business contract explicitly requires it.
+
+---
+
+# 26. Reservation Confirmation
+
+Support the vendor acknowledgement stage.
+
+The simulator should be able to:
+
+* Receive acknowledgement
+* Validate correlation
+* Detect duplicate acknowledgement
+* Confirm reservation
+* Update reservation state
+* Record audit
+* Publish confirmation
+
+The simulator must support configurable acknowledgement success/failure.
+
+---
+
+# 27. Settlement Processing
+
+Support settlement after the pre-fund reservation lifecycle.
+
+Settlement input should contain appropriate identifiers such as:
+
+* Settlement reference
+* Payment reference
+* Reservation reference
+* Account
+* Amount
+* Currency
+* Correlation identifier
+
+Process:
+
+```text
+Settlement Received
+       ↓
+Validate
+       ↓
+Find Reservation
+       ↓
+Validate Amount
+       ↓
+Check Reservation State
+       ↓
+Apply Settlement Rule
+       ↓
+Consume/Release Earmark
+       ↓
+Update Account
+       ↓
+Record Ledger Transaction
+       ↓
+Audit
+       ↓
+Settlement Response
+```
+
+---
+
+# 28. Settlement Rules
+
+The simulator must support configurable settlement behavior.
+
+For example:
+
+### Model A — Earmark Consumption
+
+Before:
+
+```text
+Ledger      100,000
+Reserved     20,000
+Available    80,000
+```
+
+After settlement:
+
+```text
+Ledger       80,000
+Reserved      0
+Available     80,000
+```
+
+### Model B — Release Earmark and Separate Debit
+
+The simulator should support an alternative model if required by the actual account system.
+
+Do not hard-code one accounting interpretation without documenting the selected business rule.
+
+---
+
+# 29. Settlement Idempotency
+
+Repeated settlement requests must not debit or alter the account more than once.
+
+Duplicate settlement scenarios must be testable.
+
+---
+
+# 30. Settlement Failure Scenarios
+
+Support:
+
+* Unknown reservation
+* Amount mismatch
+* Account mismatch
+* Duplicate settlement
+* Already settled
+* Reservation not confirmed
+* Technical failure
+* Timeout
+* Configured rejection
+* Manual review
+
+---
+
+# 31. Audit
+
+Maintain immutable audit history.
+
+Every important operation must capture:
+
+* Entity type
+* Entity identifier
+* Action
+* Previous state
+* New state
+* Timestamp
+* Correlation ID
+* Payment reference
+* Reservation reference
+* Settlement reference
+* Account reference
+* Response code
+* JSON attributes
+
+Sensitive information must be masked appropriately.
+
+---
+
+# 32. Simulation History
+
+Maintain a record of every simulation action.
+
+Capture:
+
+* Scenario
+* Input reference
+* Selected rule
+* Response behavior
+* Delay
+* Failure mode
+* Result
+* Timestamp
+* Tester/operator
+* Correlation ID
+
+This allows a tester to understand exactly why the simulator returned a particular result.
+
+---
+
+# 33. Messaging Architecture
+
+Create a provider-independent messaging abstraction.
+
+Support:
+
+### Local Mode
+
+```text
+ACH Application
+      ↓
+In-Memory Simulator
+      ↓
+Response
+```
+
+### Integration Mode
+
+```text
+ACH Application
+      ↓
+Kafka / MQ
+      ↓
+Simulator Consumer
+      ↓
+Account/Reservation Engine
+      ↓
+Kafka / MQ
+      ↓
+ACH Application
+```
+
+The business behavior must remain identical in both modes.
+
+---
+
+# 34. Event Model
+
+Support conceptual events such as:
+
+### Incoming
+
+* ReservationRequested
+* VendorAcknowledgementReceived
+* SettlementRequested
+
+### Outgoing
+
+* ReservationCompleted
+* ReservationRejected
+* ReservationFailed
+* SettlementCompleted
+* SettlementRejected
+* ReservationReleased
+* EarmarkConsumed
+
+Each event should contain enough information to correlate it with the originating business transaction.
+
+---
+
+# 35. Event Idempotency
+
+Every message must have:
+
+* Unique message identifier
+* Event type
+* Correlation identifier
+* Business reference
+* Timestamp
+* Source
+
+Repeated messages must not cause repeated financial operations.
+
+---
+
+# 36. Simulator UI
+
+Build a React-based UI with the following major areas.
+
+### Dashboard
+
+Show:
+
+* Total accounts
+* Active accounts
+* Total ledger balance
+* Total reserved amount
+* Total available balance
+* Reservations today
+* Successful reservations
+* Failed reservations
+* Outstanding reservations
+* Settlements today
+* Settlement failures
+* Active simulation rules
+
+---
+
+# 37. Account Management UI
+
+Provide:
+
+* Create account
+* Edit account
+* Search account
+* View account
+* Activate/deactivate
+* Single balance adjustment
+* Bulk balance adjustment
+* Import CSV
+* Import JSON
+* Export CSV
+* Export JSON
+
+---
+
+# 38. Reservation Console
+
+Provide a test console where the tester can:
+
+* Select account
+* Enter amount
+* Enter payment reference
+* Select scenario
+* Submit reservation
+* View result
+* View resulting account balance
+* View reservation
+* View audit
+
+Allow both normal and deliberately failing scenarios.
+
+---
+
+# 39. Settlement Console
+
+Provide a test console where the tester can:
+
+* Select reservation
+* Enter settlement reference
+* Select scenario
+* Submit settlement
+* View result
+* View account balances
+* View ledger
+* View reservation state
+* View audit
+
+---
+
+# 40. Simulation Rule Management
+
+UI must allow:
+
+* Create rule
+* Edit rule
+* Enable/disable rule
+* Delete rule
+* Search rule
+* Test rule
+* Set priority
+
+Display the effective rule when a simulated request is processed.
+
+---
+
+# 41. Search
+
+Provide global search across:
+
+* Account
+* Payment reference
+* Reservation reference
+* Settlement reference
+* Correlation ID
+* Message ID
+* Response code
+
+Search results should provide navigation to the complete lifecycle.
+
+---
+
+# 42. End-to-End Trace View
+
+For a payment, show:
+
+```text
+Reservation Request
+        ↓
+Reservation Processing
+        ↓
+Funds Earmarked
+        ↓
+Reservation Response
+        ↓
+Vendor Acknowledgement
+        ↓
+Settlement
+        ↓
+Earmark Consumption/Release
+        ↓
+Final Account State
+```
+
+Display timestamps and response codes at every stage.
+
+This is one of the most important features for functional testing.
+
+---
+
+# 43. Test Scenario Management
+
+Support reusable named scenarios.
+
+Examples:
+
+### Successful Reservation
+
+```text
+Account has $100,000
+Request $20,000
+Expected result: RESERVED
+```
+
+### Insufficient Funds
+
+```text
+Account has $10,000
+Request $20,000
+Expected result: INSUFFICIENT_FUNDS
+```
+
+### Delayed Response
+
+```text
+Reservation succeeds
+Response delayed by 30 seconds
+```
+
+### Duplicate Response
+
+```text
+Reservation succeeds
+Same response sent twice
+```
+
+### Settlement Success
+
+```text
+Confirmed reservation
+Settlement succeeds
+Earmark consumed
+```
+
+### Settlement Mismatch
+
+```text
+Reservation = $20,000
+Settlement = $25,000
+Expected result = REJECTED
+```
+
+---
+
+# 44. Test Data Seeding
+
+Provide deterministic test-data initialization.
+
+Support:
+
+* Seed accounts
+* Seed balances
+* Seed reservations
+* Seed settlement states
+* Seed simulation rules
+* Seed failure scenarios
+
+Allow complete test environment reset.
+
+A test should be able to start from a known state.
+
+---
+
+# 45. Reset Capability
+
+Provide separate reset options:
+
+* Reset all accounts
+* Reset reservations
+* Reset settlements
+* Reset audit
+* Reset simulation rules
+* Reset messaging state
+* Complete environment reset
+
+Require explicit confirmation for destructive operations.
+
+---
+
+# 46. Functional Testing Support
+
+The simulator must support automated functional testing of the ACH application.
+
+A functional test should be able to:
+
+```text
+1. Seed account
+2. Set balance
+3. Configure simulator response
+4. Submit ACH file
+5. Allow ACH application to process
+6. Receive reservation request
+7. Return configured reservation response
+8. Validate ACH response processing
+9. Generate vendor response
+10. Send acknowledgement
+11. Trigger settlement
+12. Validate final state
+```
+
+---
+
+# 47. Functional Assertions
+
+The test framework must be able to validate:
+
+* Account balance
+* Available balance
+* Reserved balance
+* Ledger transactions
+* Reservation state
+* Reservation reference
+* Response code
+* Settlement state
+* Settlement reference
+* Audit records
+* Message processing
+* Duplicate handling
+* Final reconciliation
+
+---
+
+# 48. Reconciliation
+
+Provide simulator reconciliation.
+
+### Account Reconciliation
+
+Verify:
+
+```text
+Ledger Balance
+-
+Reserved Balance
+=
+Available Balance
+```
+
+where applicable.
+
+### Reservation Reconciliation
+
+Compare:
+
+```text
+Reservation amount
+Account reserved amount
+Settlement amount
+Final earmark state
+```
+
+### Settlement Reconciliation
+
+Verify:
+
+```text
+Reservation
++
+Settlement
++
+Account Ledger
++
+Final Account State
+```
+
+are internally consistent.
+
+Expose reconciliation exceptions prominently.
+
+---
+
+# 49. Concurrency
+
+The simulator must safely process concurrent:
+
+* Reservations for the same account
+* Reservations for different accounts
+* Settlements
+* Balance adjustments
+
+For the same account, concurrent reservations must not oversubscribe available funds.
+
+Example:
+
+```text
+Available = $100
+
+Request A = $80
+Request B = $50
+```
+
+Only one may successfully reserve funds if both execute concurrently.
+
+This must be verified through automated concurrency tests.
+
+---
+
+# 50. Performance
+
+Support configurable load testing.
+
+Measure:
+
+* Reservation requests/second
+* Settlement requests/second
+* Account lookup latency
+* Concurrent account operations
+* Response latency
+* Database latency
+* Messaging latency
+
+The simulator must be able to act as a realistic downstream dependency during performance testing of the ACH application.
+
+---
+
+# 51. Observability
+
+Provide:
+
+* Structured logs
+* Correlation IDs
+* Metrics
+* Distributed tracing
+* Health status
+* Simulation statistics
+
+Important metrics:
+
+* Reservation throughput
+* Reservation latency
+* Success rate
+* Failure rate
+* Settlement throughput
+* Settlement latency
+* Outstanding reservations
+* Delayed responses
+* Duplicate requests
+* Duplicate responses
+* Active rules
+* Messaging backlog
+
+---
+
+# 52. Security
+
+Support:
+
+* Authentication
+* Role-based authorization
+* Operator/tester roles
+* Audit of administrative actions
+* Secure configuration
+* Secret management
+* TLS
+* Sensitive-data masking
+
+Do not expose real customer/account information in logs or test reports.
+
+The simulator should use synthetic test data by default.
+
+---
+
+# 53. Deployment
+
+Provide containerized deployment suitable for:
+
+* Local Docker
+* Docker Compose
+* Kubernetes
+* OpenShift
+
+Support:
+
+* Configurable database
+* Configurable messaging mode
+* Configurable response behavior
+* Horizontal scaling where appropriate
+* Health checks
+* Graceful shutdown
+* Resource limits
+* External configuration
+* Persistent database storage
+
+---
+
+# 54. Environment Profiles
+
+Provide conceptual profiles:
+
+### Local
+
+```text
+React
++
+.NET
++
+SQLite/PostgreSQL
++
+In-Memory Messaging
+```
+
+### Integration
+
+```text
+React
++
+.NET
++
+PostgreSQL
++
+Kafka/MQ
+```
+
+### Performance
+
+```text
+Multiple Simulator Instances
++
+PostgreSQL
++
+Kafka/MQ
++
+Synthetic Large Dataset
+```
+
+---
+
+# 55. Testing Requirements
+
+Create automated tests for:
+
+### Account
+
+* Create account
+* Duplicate account
+* Search
+* Update
+* Balance adjustment
+* Bulk update
+* Concurrent update
+* Account status changes
+
+### Reservation
+
+* Success
+* Insufficient funds
+* Invalid account
+* Blocked account
+* Duplicate request
+* Timeout
+* Delayed response
+* Technical failure
+* Concurrent reservations
+
+### Settlement
+
+* Success
+* Unknown reservation
+* Amount mismatch
+* Duplicate settlement
+* Already settled
+* Technical failure
+* Earmark release
+* Earmark consumption
+
+### Messaging
+
+* Duplicate message
+* Delayed message
+* Out-of-order message
+* Missing message
+* Retry
+* Failure
+
+### Recovery
+
+* Application restart
+* Database restart
+* Worker restart
+* Message broker restart
+
+---
+
+# 56. Test Reporting
+
+Functional tests should produce a clear report showing:
+
+```text
+Scenario
+Input
+Expected Result
+Actual Result
+Account Before
+Account After
+Reservation State
+Settlement State
+Response Code
+Audit Result
+Message Result
+Pass/Fail
+```
+
+Allow correlation from the test result into the simulator's transaction history.
+
+---
+
+# 57. Architecture Separation
+
+Use logical separation between:
+
+```text
+Presentation
+    ↓
+Application
+    ↓
+Domain
+    ↓
+Persistence
+    ↓
+Messaging
+    ↓
+Simulation Engine
+```
+
+The simulation engine should contain business behavior.
+
+The UI should only control and visualize that behavior.
+
+Messaging should be an infrastructure concern.
+
+---
+
+# 58. Simulator as a Contract Test System
+
+The simulator should become the executable contract for the downstream reservation/settlement integration.
+
+Define and maintain:
+
+* Request contract
+* Response contract
+* Error contract
+* State transitions
+* Idempotency behavior
+* Timeout behavior
+* Retry behavior
+* Settlement behavior
+
+This allows the ACH application to be validated before integration with the actual downstream system.
+
+---
+
+# 59. Definition of Done
+
+The simulator is complete when:
+
+### Account
+
+* Accounts can be created, searched, viewed and updated.
+* Single and bulk balances can be changed.
+* CSV and JSON import work.
+* Ledger history is maintained.
+* Available/reserved balances are correct.
+
+### Reservation
+
+* Funds can be successfully earmarked.
+* Insufficient funds are rejected.
+* Invalid accounts are rejected.
+* Duplicate requests are idempotent.
+* Reservation references are generated.
+* Responses can be delayed or failed intentionally.
+
+### Acknowledgement
+
+* Vendor acknowledgement can be simulated.
+* Duplicate acknowledgement is safe.
+* Reservation confirmation is correctly reflected.
+
+### Settlement
+
+* Settlement can be initiated.
+* Reservation can be correlated.
+* Earmark can be consumed/released according to configured rules.
+* Duplicate settlement is safe.
+* Amount mismatches are detected.
+
+### Simulation
+
+* Success/failure scenarios are configurable.
+* Delays can be configured.
+* Duplicate responses can be generated.
+* Out-of-order responses can be generated.
+* Technical failures can be simulated.
+
+### UI
+
+* Dashboard works.
+* Account management works.
+* Balance management works.
+* Bulk import works.
+* Reservation console works.
+* Settlement console works.
+* Simulation rules work.
+* Search works.
+* End-to-end trace works.
+
+### Testing
+
+* Automated functional tests can seed data.
+* Automated tests can control simulator behavior.
+* Automated tests can validate account state.
+* Automated tests can validate reservation state.
+* Automated tests can validate settlement state.
+* Automated tests can validate audit and ledger.
+* Automated tests can simulate failure and recovery.
+
+---
+
+# 60. Final Principle
+
+The simulator must behave as a **deterministic, stateful financial-system simulator**, not as a collection of mock endpoints.
+
+Its authoritative lifecycle should be:
+
+```text
+Account
+   ↓
+Available Funds
+   ↓
+Reservation Request
+   ↓
+Funds Earmarked
+   ↓
+Reservation Response
+   ↓
+Vendor Acknowledgement
+   ↓
+Reservation Confirmed
+   ↓
+Settlement
+   ↓
+Earmark Consumed / Released
+   ↓
+Final Account State
+   ↓
+Reconciliation
+```
+
+Every state-changing operation must be:
+
+**transactional + idempotent + auditable + deterministic + recoverable + observable + reconcilable.**
+
+The simulator must be capable of reproducing both normal and adverse downstream behavior so that the ACH Pre-Fund and Settlement application can be fully functionally validated before integration with the real account/fund reservation and settlement systems.
+
+
+
+Yes. I would define the simulator as a **standalone payment-system simulator** whose primary purpose is to support functional/integration testing of your ACH pre-fund reservation and settlement workflows without depending on real account systems or downstream MQ/Kafka systems.
+
+Below is a **complete implementation-ready requirement** you can give to Claude Code to build the application.
+
+# Payment Account + Pre-Fund + Settlement Simulator
+
+## 1. Objective
+
+Build a web-based simulator using:
+
+* **Backend:** ASP.NET Core .NET 10
+* **Frontend:** React + TypeScript
+* **Database:** PostgreSQL preferred; SQLite supported for local development
+* **API:** REST/JSON
+* **UI:** React
+* **Background processing:** .NET `BackgroundService`
+* **Container:** Docker
+* **Deployment:** Kubernetes/OpenShift ready
+* **Import:** CSV and JSON
+* **Export:** CSV and JSON
+
+The simulator must provide a controllable environment for testing:
+
+```text
+Account
+   ↓
+Available Balance
+   ↓
+Pre-Fund Reservation Request
+   ↓
+Earmark / Reserve Funds
+   ↓
+Reservation Response
+   ↓
+Settlement Request
+   ↓
+Settlement
+   ↓
+Release/Commit Earmark
+   ↓
+Final Account Balance
+```
+
+ASP.NET Core's hosted-service model is appropriate for asynchronous simulator processing and queued background work. ([Microsoft Learn][1])
+
+---
+
+# 2. Core Capabilities
+
+The simulator must support:
+
+### Account Management
+
+* Create account
+* View account
+* Search accounts
+* Update account
+* Delete/deactivate account
+* Update balance
+* Bulk balance update
+* CSV account import
+* JSON account import
+* CSV export
+* JSON export
+
+### Pre-Fund
+
+* Create reservation request
+* Reserve/earmark funds
+* Query reservation
+* Search reservations
+* Approve/reject reservation
+* Simulate insufficient funds
+* Simulate invalid account
+* Simulate technical failure
+* Return configurable response codes
+
+### Settlement
+
+* Receive settlement request
+* Validate reservation
+* Complete settlement
+* Consume/release earmark according to configured business scenario
+* Update account balance
+* Generate settlement response
+* Simulate settlement failure
+
+### Testing Controls
+
+The UI should allow testers to intentionally simulate:
+
+* Success
+* Insufficient funds
+* Invalid account
+* Duplicate request
+* Timeout
+* Technical failure
+* Delayed response
+* Partial failure
+* Duplicate response
+
+---
+
+# 3. Account Model
+
+Create:
+
+```text
+ACCOUNT
+-------
+Id
+AccountNumber
+AccountName
+RoutingNumber
+Currency
+AvailableBalance
+LedgerBalance
+ReservedBalance
+Status
+Version
+CreatedAt
+UpdatedAt
+```
+
+Balance calculation:
+
+```text
+Available Balance
+=
+Ledger Balance
+-
+Reserved Balance
+```
+
+Example:
+
+```text
+Ledger Balance       $100,000
+Reserved Balance      $20,000
+                     --------
+Available Balance     $80,000
+```
+
+Do not directly manipulate `AvailableBalance` independently.
+
+It should be derived or updated transactionally from ledger/reservation changes.
+
+---
+
+# 4. Account Status
+
+Support:
+
+```text
+ACTIVE
+BLOCKED
+CLOSED
+SUSPENDED
+```
+
+Only `ACTIVE` accounts can participate in reservation.
+
+---
+
+# 5. Reservation Model
+
+Create:
+
+```text
+PREFUND_RESERVATION
+-------------------
+ReservationId
+RequestId
+AccountId
+PaymentReference
+Amount
+Currency
+Status
+ReservationReference
+ResponseCode
+ResponseMessage
+RequestedAt
+ReservedAt
+ExpiresAt
+CompletedAt
+CreatedAt
+UpdatedAt
+Version
+```
+
+Statuses:
+
+```text
+REQUESTED
+PROCESSING
+RESERVED
+REJECTED
+EXPIRED
+SETTLEMENT_PENDING
+SETTLED
+RELEASED
+FAILED
+```
+
+---
+
+# 6. Important Reservation Rule
+
+Reservation must be **atomic**.
+
+Example:
+
+```text
+Account balance = $100,000
+
+Reservation = $20,000
+```
+
+Transaction:
+
+```text
+BEGIN
+
+Lock Account
+
+Check Available Balance
+
+Create Reservation
+
+Increase ReservedBalance
+
+COMMIT
+```
+
+Result:
+
+```text
+Ledger       $100,000
+Reserved      $20,000
+Available     $80,000
+```
+
+Two concurrent requests must not be allowed to reserve the same available funds.
+
+Use database transaction + row-level locking/optimistic concurrency.
+
+---
+
+# 7. Reservation Scenarios
+
+The simulator should allow:
+
+### Successful
+
+```text
+Request
+   ↓
+Account Valid
+   ↓
+Sufficient Funds
+   ↓
+RESERVED
+```
+
+### Insufficient Funds
+
+```text
+Request
+   ↓
+Available < Requested
+   ↓
+REJECTED
+INSUFFICIENT_FUNDS
+```
+
+### Invalid Account
+
+```text
+Account not found
+       ↓
+INVALID_ACCOUNT
+```
+
+### Duplicate
+
+```text
+Same RequestId
+       ↓
+DUPLICATE_REQUEST
+```
+
+### Simulated Technical Failure
+
+```text
+Request
+   ↓
+Configured Failure
+   ↓
+TECHNICAL_ERROR
+```
+
+---
+
+# 8. Settlement Model
+
+Create:
+
+```text
+SETTLEMENT
+----------
+SettlementId
+ReservationId
+PaymentReference
+AccountId
+Amount
+Status
+ResponseCode
+ResponseMessage
+SettlementReference
+ReceivedAt
+CompletedAt
+CreatedAt
+```
+
+Statuses:
+
+```text
+RECEIVED
+VALIDATED
+COMPLETED
+FAILED
+DUPLICATE
+```
+
+---
+
+# 9. Settlement Processing
+
+For a successful settlement:
+
+```text
+Reservation
+     │
+     ▼
+SETTLEMENT_REQUEST
+     │
+     ▼
+Validate Reservation
+     │
+     ▼
+Consume Earmark
+     │
+     ▼
+Update Account
+     │
+     ▼
+SETTLED
+```
+
+The exact accounting treatment should be configurable because your real downstream system may treat the earmark differently.
+
+For example:
+
+```text
+Before:
+
+Ledger       $100,000
+Reserved      $20,000
+Available     $80,000
+
+Settlement:
+
+Ledger        $80,000
+Reserved       $0
+Available     $80,000
+```
+
+or another configured accounting model.
+
+The simulator should make this behavior explicit rather than hard-code assumptions.
+
+---
+
+# 10. Account Transaction Ledger
+
+Do **not** rely only on the current balance.
+
+Create:
+
+```text
+ACCOUNT_TRANSACTION
+-------------------
+TransactionId
+AccountId
+TransactionType
+ReferenceId
+Amount
+BalanceBefore
+BalanceAfter
+ReservedBefore
+ReservedAfter
+Direction
+CreatedAt
+MetadataJson
+```
+
+Transaction types:
+
+```text
+OPENING_BALANCE
+RESERVATION
+RESERVATION_RELEASE
+SETTLEMENT
+ADJUSTMENT
+REFUND
+```
+
+This gives you complete reconciliation.
+
+---
+
+# 11. Audit
+
+Create:
+
+```text
+AUDIT_EVENT
+-----------
+AuditId
+EntityType
+EntityId
+EventType
+PreviousState
+NewState
+CorrelationId
+Timestamp
+Actor
+AttributesJson
+```
+
+Example:
+
+```json
+{
+  "reservationId": "RES-10001",
+  "accountId": "ACC-1001",
+  "amount": 25000,
+  "availableBalanceBefore": 100000,
+  "availableBalanceAfter": 75000
+}
+```
+
+Audit records must be immutable.
+
+---
+
+# 12. REST API
+
+### Accounts
+
+```http
+POST   /api/accounts
+GET    /api/accounts
+GET    /api/accounts/{id}
+PUT    /api/accounts/{id}
+DELETE /api/accounts/{id}
+```
+
+Balance:
+
+```http
+POST /api/accounts/{id}/balance-adjustment
+POST /api/accounts/balance-adjustment/bulk
+```
+
+Import:
+
+```http
+POST /api/accounts/import/csv
+POST /api/accounts/import/json
+```
+
+Export:
+
+```http
+GET /api/accounts/export/csv
+GET /api/accounts/export/json
+```
+
+---
+
+# 13. Reservation APIs
+
+```http
+POST /api/reservations
+GET  /api/reservations
+GET  /api/reservations/{id}
+POST /api/reservations/{id}/reserve
+POST /api/reservations/{id}/release
+POST /api/reservations/{id}/simulate
+```
+
+Simulation request:
+
+```json
+{
+  "scenario": "INSUFFICIENT_FUNDS"
+}
+```
+
+Supported scenarios:
+
+```text
+SUCCESS
+INSUFFICIENT_FUNDS
+INVALID_ACCOUNT
+DUPLICATE
+TIMEOUT
+TECHNICAL_ERROR
+DELAYED_SUCCESS
+```
+
+---
+
+# 14. Settlement APIs
+
+```http
+POST /api/settlements
+GET  /api/settlements
+GET  /api/settlements/{id}
+POST /api/settlements/{id}/process
+POST /api/settlements/{id}/simulate
+```
+
+---
+
+# 15. Bulk Account Update
+
+Support:
+
+```text
+Upload CSV
+     ↓
+Validate
+     ↓
+Preview
+     ↓
+Show valid/invalid rows
+     ↓
+Confirm
+     ↓
+Bulk Update
+     ↓
+Result
+```
+
+Example CSV:
+
+```csv
+AccountNumber,Amount,Operation
+100001,50000,SET
+100002,25000,ADD
+100003,10000,SUBTRACT
+```
+
+Display:
+
+```text
+Total Rows:       10,000
+Valid:             9,950
+Invalid:              50
+Updated:           9,950
+Failed:               0
+```
+
+Never partially update silently.
+
+---
+
+# 16. JSON Bulk Import
+
+Support:
+
+```json
+[
+  {
+    "accountNumber": "100001",
+    "amount": 50000,
+    "operation": "SET"
+  },
+  {
+    "accountNumber": "100002",
+    "amount": 25000,
+    "operation": "ADD"
+  }
+]
+```
+
+Large imports should be processed asynchronously rather than holding the HTTP request open.
+
+Use a background queue/worker for large jobs; ASP.NET Core supports queued background tasks through hosted services. ([Microsoft Learn][1])
+
+---
+
+# 17. React UI
+
+Create these pages.
+
+### Dashboard
+
+```text
+Accounts              10,245
+Active                  9,850
+Blocked                   120
+
+Reservations            5,423
+Reserved Amount       $25.4M
+
+Settlements             4,921
+Failed                    18
+```
+
+---
+
+### Account Search
+
+Filters:
+
+```text
+Account Number
+Account Name
+Routing Number
+Status
+Balance Range
+```
+
+Actions:
+
+```text
+View
+Edit
+Adjust Balance
+View Transactions
+View Reservations
+```
+
+---
+
+### Account Detail
+
+```text
+Account: 100001
+Status: ACTIVE
+
+Ledger Balance       $100,000
+Reserved Balance      $20,000
+Available Balance     $80,000
+```
+
+Tabs:
+
+```text
+Transactions
+Reservations
+Settlements
+Audit
+```
+
+---
+
+# 18. Bulk Balance UI
+
+```text
+Bulk Balance Update
+
+[ Upload CSV ]
+
+[ Upload JSON ]
+
+        ↓
+
+Validation Preview
+
+Total     10,000
+Valid      9,980
+Invalid       20
+
+        ↓
+
+[ Confirm Update ]
+
+        ↓
+
+Processing...
+
+        ↓
+
+Completed
+```
+
+Allow download of failed rows.
+
+---
+
+# 19. Reservation Simulator UI
+
+Provide a test console:
+
+```text
+Account
+[100001              ]
+
+Amount
+[25000               ]
+
+Payment Reference
+[PAY-10001           ]
+
+Scenario
+[ SUCCESS ▼          ]
+
+[ RESERVE FUNDS ]
+```
+
+Response:
+
+```text
+Reservation: RES-10001
+
+Status: RESERVED
+
+Response Code: 000
+
+Reserved Amount: $25,000
+
+Available Balance: $75,000
+```
+
+---
+
+# 20. Settlement Simulator UI
+
+```text
+Reservation
+[RES-10001]
+
+Scenario
+[SUCCESS ▼]
+
+[ PROCESS SETTLEMENT ]
+```
+
+Result:
+
+```text
+Settlement: SET-10001
+
+Status: COMPLETED
+
+Amount: $25,000
+
+Reservation: SETTLED
+```
+
+---
+
+# 21. Event Simulation
+
+The simulator should expose events so your real payment application can integrate with it.
+
+Example:
+
+```text
+Payment Application
+        │
+        │ Reserve Request
+        ▼
+   Simulator API
+        │
+        ▼
+ Account DB
+        │
+        ▼
+ Reserve Response
+        │
+        ▼
+Payment Application
+```
+
+For Kafka/MQ testing, create an adapter:
+
+```text
+IMessageTransport
+       │
+ ┌─────┴─────┐
+ │           │
+InMemory    Kafka
+```
+
+The same simulator should run without Kafka for local functional tests and with Kafka for integration testing.
+
+---
+
+# 22. Configurable Response Engine
+
+This is particularly important for your testing framework.
+
+Create:
+
+```text
+SIMULATION_RULE
+----------------
+RuleId
+Operation
+MatchCriteriaJson
+ResponseCode
+ResponseStatus
+DelayMilliseconds
+FailureType
+Enabled
+```
+
+Example:
+
+```json
+{
+  "operation": "RESERVE",
+  "match": {
+    "accountNumber": "100005"
+  },
+  "responseCode": "INSUFFICIENT_FUNDS",
+  "delayMilliseconds": 0
+}
+```
+
+Another:
+
+```json
+{
+  "operation": "RESERVE",
+  "match": {
+    "paymentReference": "PAY-999"
+  },
+  "responseCode": "TIMEOUT",
+  "delayMilliseconds": 30000
+}
+```
+
+This allows your functional tests to dynamically control downstream behavior.
+
+---
+
+# 23. Search and Reporting
+
+Provide global search:
+
+```text
+Account
+Payment Reference
+Reservation ID
+Settlement ID
+Correlation ID
+Transaction ID
+```
+
+Results should show the complete lifecycle:
+
+```text
+PAY-10001
+
+Received
+   ↓
+Reserve Requested
+   ↓
+Funds Reserved
+   ↓
+Response Generated
+   ↓
+Settlement Received
+   ↓
+Settlement Completed
+```
+
+---
+
+# 24. Technical Architecture
+
+```text
+                    React UI
+                       │
+                       ▼
+              ASP.NET Core API
+                       │
+       ┌───────────────┼────────────────┐
+       ▼               ▼                ▼
+ Account Service   Reservation      Settlement
+                       │                │
+                       └───────┬────────┘
+                               ▼
+                         Domain Layer
+                               │
+                               ▼
+                        PostgreSQL
+                               │
+                    ┌──────────┴─────────┐
+                    ▼                    ▼
+               Audit Ledger          Event Store
+                    │
+                    ▼
+             Background Worker
+                    │
+             ┌──────┴──────┐
+             ▼             ▼
+         InMemory        Kafka
+```
+
+Keep the domain logic independent from React, REST, Kafka, and the database.
+
+---
+
+# 25. Suggested .NET Solution
+
+```text
+PaymentSimulator.sln
+
+src/
+├── PaymentSimulator.Api
+├── PaymentSimulator.Application
+├── PaymentSimulator.Domain
+├── PaymentSimulator.Infrastructure
+├── PaymentSimulator.Worker
+└── PaymentSimulator.Contracts
+
+tests/
+├── PaymentSimulator.UnitTests
+├── PaymentSimulator.IntegrationTests
+└── PaymentSimulator.FunctionalTests
+
+ui/
+└── payment-simulator-web/
+```
+
+---
+
+# 26. Functional Test Integration
+
+Your existing ACH test framework can execute:
+
+```text
+1. Load account CSV
+        ↓
+2. Set balances
+        ↓
+3. Submit ACH pre-fund file
+        ↓
+4. Application sends reservation request
+        ↓
+5. Simulator reserves funds
+        ↓
+6. Application receives response
+        ↓
+7. Application generates vendor response
+        ↓
+8. Simulator receives acknowledgement
+        ↓
+9. Settlement simulated
+        ↓
+10. Verify final account state
+```
+
+The test framework should be able to reset simulator data between scenarios.
+
+---
+
+# 27. Reset / Test Data APIs
+
+Very important for automated testing:
+
+```http
+POST /api/test/reset
+POST /api/test/seed
+POST /api/test/accounts/reset
+POST /api/test/scenarios
+```
+
+Example:
+
+```json
+{
+  "scenario": "PREFUND_SUCCESS",
+  "accounts": [
+    {
+      "accountNumber": "ACC001",
+      "balance": 100000
+    }
+  ]
+}
+```
+
+Then the entire test environment can be initialized deterministically.
+
+---
+
+# 28. Non-Functional Requirements
+
+The simulator should support:
+
+* Concurrent requests.
+* Idempotency.
+* Optimistic concurrency.
+* Transactional balance updates.
+* Structured logging.
+* Correlation IDs.
+* OpenTelemetry.
+* Health checks.
+* Docker.
+* Kubernetes manifests.
+* ConfigMap/Secret configuration.
+* PostgreSQL connection pooling.
+* API rate limiting.
+* Authentication configurable/off for local development.
+* Swagger/OpenAPI.
+* Automated unit/integration/functional tests.
+
+---
+
+# 29. Most Important Design Rule
+
+**Do not make this simulator merely CRUD around an account balance.**
+
+It should behave like a **deterministic financial system simulator**:
+
+```text
+Account
+   ↓
+Ledger
+   ↓
+Reservation
+   ↓
+Earmark
+   ↓
+Response
+   ↓
+Settlement
+   ↓
+Ledger
+```
+
+Every balance-changing operation must create a transaction and audit record, and the resulting balance must be reconcilable from the transaction history.
+
+That will make this simulator genuinely useful for your ACH pre-fund functional tests rather than just being a mock API.
+
+### Recommended build sequence
+
+**Phase 1:** Account + ledger + balance management
+**Phase 2:** Reservation/earmark engine
+**Phase 3:** Settlement engine
+**Phase 4:** CSV/JSON bulk operations
+**Phase 5:** React test console
+**Phase 6:** Configurable response/failure simulator
+**Phase 7:** Kafka/InMemory adapter
+**Phase 8:** Automated functional-test integration
+**Phase 9:** Docker/OpenShift deployment and observability.
+
+[1]: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/host/hosted-services?view=aspnetcore-10.0&utm_source=chatgpt.com "Background tasks with hosted services in ASP.NET Core | Microsoft Learn"
