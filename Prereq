@@ -1,0 +1,52 @@
+ACH Pre-Fund Reserve and Refund — Mandatory Requirements
+
+1. The application must implement end-to-end ACH pre-fund reservation, reserve/earmark, refund/release, response, acknowledgement, and reconciliation processing.
+2. The application must implement inbound ACH/NACHA file ingestion from configurable shared file-system locations.
+3. The application must implement reliable directory polling for NFS/shared storage and must not depend solely on file-system watcher notifications.
+4. The application must implement file-stability validation to ensure a file is completely transferred before processing begins.
+5. The application must implement database-backed processing ownership so that only one instance processes a file in a multi-pod or dual-data-center deployment.
+6. The application must implement SHA-256 checksum generation and duplicate-file detection before accepting a file for business processing.
+7. The application must implement NACHA structural validation including file headers, batch headers, entry records, addenda where applicable, batch controls, file controls, record counts, and control totals.
+8. The application must implement streaming file processing so that large files containing millions of transactions can be processed without loading the complete file into memory.
+9. The application must implement sequential file reading combined with configurable parallel batch processing to maximize throughput while preserving NACHA structural integrity.
+10. The application must implement durable batch-level checkpoints containing file, batch, processing state, ownership, retry, and completion information.
+11. The application must implement automatic recovery of incomplete batches following pod, process, node, database, or data-center failures without reprocessing successfully completed batches.
+12. The application must implement persistent ACH transaction records containing file, batch, trace, payment reference, account, amount, effective date, processing state, reservation state, refund state, response information, and correlation identifiers.
+13. The application must implement idempotency at file, payment, reservation, refund, acknowledgement, and message-processing levels to prevent duplicate financial operations.
+14. The application must implement pre-fund reservation processing that validates the account, amount, currency, account status, available funds, eligibility, and duplicate request conditions before requesting an earmark.
+15. The application must implement a RESERVE_PENDING state while the reservation request is awaiting a response from the downstream fund-management system.
+16. The application must implement successful reservation handling that records the reservation reference, response code, earmarked amount, timestamp, and resulting RESERVED state.
+17. The application must implement reservation rejection handling for insufficient funds, invalid accounts, blocked accounts, closed accounts, invalid amounts, duplicate requests, business rejections, and other configured downstream responses.
+18. The application must implement asynchronous reservation-response processing with reliable correlation to the originating ACH payment using immutable business and correlation identifiers.
+19. The application must implement duplicate and out-of-order response handling so that repeated or delayed messages cannot incorrectly alter an already established payment state.
+20. The application must implement refund/release processing capable of releasing all or part of a previously earmarked amount according to defined business rules.
+21. The application must implement validation preventing a refund or release amount from exceeding the eligible reserved amount unless an explicitly configured business rule permits it.
+22. The application must implement partial refund support and maintain original reserved amount, previously refunded amount, current reserved amount, and remaining refundable amount.
+23. The application must implement refund idempotency so that retrying the same refund request cannot release funds more than once.
+24. The application must implement clearly defined reservation and refund state machines including requested, pending, reserved, partially released, released, rejected, failed, retry-pending, completed, and manual-review states as applicable.
+25. The application must implement database transactions so that payment state changes, reservation/refund changes, audit entries, processing-state updates, and corresponding outbound events are committed atomically.
+26. The application must implement the Transactional Outbox pattern so that a committed financial transaction can never permanently lose its corresponding downstream Kafka/MQ event.
+27. The application must implement an independent Outbox Publisher capable of safely publishing pending reserve, refund, response, acknowledgement, and completion events to Kafka or the enterprise messaging platform.
+28. The application must implement configurable retries with exponential backoff for transient database, messaging, network, storage, and downstream-system failures while preventing automatic retries for permanent business rejections.
+29. The application must implement dead-letter or manual-review handling when technical processing exceeds configured retry thresholds.
+30. The application must implement immutable audit records for every significant file, batch, payment, reservation, refund, response, acknowledgement, retry, recovery, and administrative state transition.
+31. The audit framework must implement structured JSON attributes containing relevant before/after business context while masking account numbers and other sensitive financial information.
+32. The application must implement response aggregation that compares expected reservation/refund responses with received responses and identifies outstanding, successful, rejected, and failed transactions.
+33. The application must implement consolidated outbound response-file generation only after the defined completion criteria for the corresponding inbound file have been satisfied.
+34. The application must implement atomic outbound-file publication using temporary creation followed by validation and rename/move so that external vendors can never retrieve partially generated files.
+35. The application must implement vendor acknowledgement processing with correlation, duplicate detection, acknowledgement state management, audit history, and appropriate reservation/refund lifecycle transitions.
+36. The application must implement reconciliation across inbound files, parsed transactions, reservation requests, reservation responses, refunds/releases, outbound response records, acknowledgements, and final transaction states.
+37. The application must implement exception reporting and manual-review capabilities whenever reconciliation identifies missing, duplicate, inconsistent, or unmatched financial transactions.
+38. The application must implement multi-instance horizontal scaling on Kubernetes/OpenShift with stateless application instances and no dependency on container-local storage for authoritative processing state.
+39. The application must implement dual-data-center processing with database-backed ownership/lease management to prevent two instances or data centers from simultaneously processing the same financial work.
+40. The application must implement graceful shutdown, readiness, liveness, lease expiration, and abandoned-work recovery so Kubernetes/OpenShift pod replacement does not result in lost or duplicated transactions.
+41. The application must implement structured logging, OpenTelemetry-compatible tracing, health monitoring, and operational metrics for file throughput, transaction throughput, processing latency, outstanding responses, retries, failures, outbox backlog, and reconciliation exceptions.
+42. The application must implement end-to-end correlation using File ID, Batch ID, Payment ID, Reservation ID, Refund ID, Message ID, and Correlation ID so an individual ACH transaction can be traced across the complete processing lifecycle.
+43. The application must implement an operational UI that supports file search, payment search, reservation/refund search, lifecycle visualization, processing-status monitoring, failure investigation, audit viewing, reconciliation viewing, and authorized retry/recovery operations.
+44. The application must implement security controls including authentication, authorization, least-privilege access, TLS, encryption at rest, secure secret management, account-data masking, and prevention of sensitive financial information from appearing in application logs.
+45. The application must implement automated unit, integration, functional, concurrency, resilience, recovery, and performance tests covering successful reservations/refunds, insufficient funds, duplicate files, duplicate messages, partial refunds, messaging outages, worker crashes, database failures, delayed responses, restart recovery, and reconciliation failures.
+46. The application must implement configurable simulators for downstream reserve/refund behavior so functional testing can reproduce success, rejection, insufficient funds, timeout, delayed response, duplicate response, out-of-order response, and technical failure without depending on the real downstream system.
+47. The application must implement performance controls for batch size, worker concurrency, database concurrency, messaging concurrency, retry behavior, and downstream request rate so horizontal scaling cannot unintentionally overload dependent systems.
+48. The application must implement complete financial traceability such that every final reservation or refund state can be reconstructed from the original file, transaction history, messages, responses, audit records, and reconciliation information.
+49. The implementation must guarantee business-level exactly-once effects through idempotency, transactional persistence, durable state, Outbox/Inbox processing, unique business keys, and reconciliation rather than assuming exactly-once network or messaging delivery.
+50. The final implementation must demonstrate that every ACH reserve and refund transaction is durable, idempotent, auditable, recoverable, observable, secure, horizontally scalable, and fully reconcilable from file receipt through final business completion.
