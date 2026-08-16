@@ -515,3 +515,518 @@ The key architectural rule
 Storage failure should stop only file intake for that DC—not payment processing, Outbox publishing, BCBS consumption/production, settlement processing, or other already-ingested business workflows.
 
 This separation gives you much better resilience than traditional DC-level active/passive failover and is particularly appropriate for your ACH pre-fund → earmark → acknowledgement → settlement workflow.
+
+======
+Yes. I would design the file-storage layer as pluggable, rather than building the ACH application specifically around NFS. Then you can support DC-specific file shares today and resilient S3/object storage later without changing the payment-processing workflow.
+
+Recommended architecture
+
+                         ┌──────────────────────┐
+                         │ External ACH Vendor  │
+                         └──────────┬───────────┘
+                                    │
+                         ┌──────────▼───────────┐
+                         │   File Storage       │
+                         │   Abstraction        │
+                         └──────────┬───────────┘
+                                    │
+                  ┌─────────────────┼─────────────────┐
+                  │                 │                 │
+                  ▼                 ▼                 ▼
+             S3 / Object       DC1 File Share    DC2 File Share
+             Storage           / NFS              / NFS
+                  │                 │                 │
+                  └─────────────────┼─────────────────┘
+                                    │
+                              File Intake
+                                    │
+                              Shared DB
+                                    │
+                 ┌──────────────────┴──────────────────┐
+                 │                                     │
+           Batch Processing                     Transactional Outbox
+                 │                                     │
+                 └──────────────────┬──────────────────┘
+                                    │
+                                  Kafka
+                                    │
+                    ┌───────────────┴───────────────┐
+                    │                               │
+                DC1 Workers                     DC2 Workers
+                    │                               │
+                    └───────────────┬───────────────┘
+                                    │
+                                   BCBS
+
+1. Support three storage modes
+
+I would explicitly support:
+
+Mode A — Resilient S3
+
+Vendor
+  ↓
+S3
+  ↓
+DC1/DC2 File Workers
+
+This is the preferred target architecture if your organization’s S3/object storage is genuinely multi-AZ/multi-DC resilient.
+
+Mode B — DC-specific storage
+
+Vendor
+ ├── DC1 NFS
+ └── DC2 NFS
+DC1 workers → DC1 NFS
+DC2 workers → DC2 NFS
+
+This is useful where the vendor delivers files independently into each data center.
+
+Mode C — S3 with DC-local access
+
+                 S3
+              /      \
+           DC1        DC2
+        Workers     Workers
+
+Both DCs use the same logical object store, but traffic can be optimized toward a local S3 endpoint/bucket/region where your infrastructure supports it.
+
+⸻
+
+2. Don’t let storage determine business ownership
+
+This is the most important architectural rule.
+
+Avoid:
+
+File belongs to DC1
+       ↓
+All processing must happen in DC1
+
+Instead:
+
+File arrives
+    ↓
+Register file
+    ↓
+Persist processing metadata
+    ↓
+Create batches
+    ↓
+Batches become distributed work
+    ↓
+Any healthy processing instance can process them
+
+Storage is where the original physical artifact resides.
+
+The database is the authoritative source for processing state.
+
+Kafka is the authoritative transport for asynchronous events.
+
+⸻
+
+3. For S3, use object identity rather than file locking
+
+With S3, don’t try to implement an NFS-style file lock.
+
+Use:
+
+Bucket
+Key
+Version ID
+ETag/checksum
+Object size
+Last modified
+
+and database ownership:
+
+INCOMING_FILE
+FILE_ID
+STORAGE_TYPE
+BUCKET
+OBJECT_KEY
+VERSION_ID
+CHECKSUM
+STATUS
+OWNER
+LEASE_EXPIRY
+
+Example:
+
+s3://ach-inbound/2026/08/16/vendor/file001.ach
+
+The application registers that object once.
+
+A unique constraint/idempotency rule prevents another instance from registering it again.
+
+⸻
+
+4. S3 upload completeness
+
+Don’t process an object simply because it appears in the bucket.
+
+Prefer a producer convention such as:
+
+file001.ach.part
+       ↓
+Upload complete
+       ↓
+file001.ach
+
+or an explicit completion marker:
+
+file001.ach
+file001.ach.complete
+
+Then:
+
+Detect object
+      ↓
+Verify completion
+      ↓
+Checksum
+      ↓
+Register
+      ↓
+Process
+
+This is particularly important for large ACH files.
+
+⸻
+
+5. S3 versioning is valuable
+
+If permitted by your organization’s storage architecture, enable object versioning.
+
+Then your processing record can identify:
+
+Bucket
+Object Key
+Version ID
+Checksum
+
+This makes the original input reproducible even if the object is subsequently replaced.
+
+For a financial system, that is extremely useful for audit and investigation.
+
+⸻
+
+6. Storage adapter
+
+Your application should conceptually have:
+
+                 File Storage
+                    Interface
+                       │
+       ┌───────────────┼────────────────┐
+       │               │                │
+       ▼               ▼                ▼
+      S3              NFS           DC File Share
+
+The business workflow should not care whether the file came from S3 or NFS.
+
+It should simply receive:
+
+FileReference
+
+containing:
+
+* Storage type
+* Location
+* Object/file identifier
+* Version
+* Size
+* Checksum
+* Source
+* DC
+* Arrival time
+
+⸻
+
+7. Your DC failure scenario becomes much better
+
+DC1 storage fails
+
+                 Database
+                    │
+        ┌───────────┴───────────┐
+        │                       │
+      DC1                     DC2
+        │                       │
+ Storage ❌                 Storage ✅
+        │                       │
+ File Intake ❌             File Intake ✅
+        │                       │
+        └──────────┬────────────┘
+                   │
+              Kafka / DB
+                   │
+          DC1 + DC2 Workers
+                   │
+                  BCBS
+
+DC1 can continue:
+
+* Processing already-ingested batches
+* Publishing Outbox events
+* Consuming BCBS responses
+* Processing settlements
+* Updating database state
+
+DC2 continues accepting new files.
+
+⸻
+
+8. If using resilient S3
+
+The model becomes even simpler:
+
+                    Resilient S3
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+             DC1                   DC2
+              │                     │
+         File Workers          File Workers
+              │                     │
+              └──────────┬──────────┘
+                         │
+                    Shared DB
+                         │
+                       Kafka
+                         │
+                    BCBS Workers
+
+A storage failure should then be treated as an S3 availability incident, rather than automatically as a DC failure.
+
+⸻
+
+9. I would make storage selection configuration-driven
+
+For example, conceptually:
+
+StorageMode = S3
+
+or:
+
+StorageMode = DC_LOCAL
+
+or:
+
+StorageMode = S3_LOCAL_ENDPOINT
+
+But don’t make business logic conditional on these modes.
+
+Only the File Storage Adapter should know.
+
+⸻
+
+10. Recommended final architecture
+
+For your ACH platform, I’d use these boundaries:
+
+┌─────────────────────────────────────────────────────────┐
+│                    FILE DOMAIN                          │
+│                                                         │
+│  File Intake → Storage Adapter → File Registration      │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                  PROCESSING DOMAIN                       │
+│                                                         │
+│  Batch → Payment → Validation → Persistence             │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                    EVENT DOMAIN                          │
+│                                                         │
+│  DB Transaction → Outbox → Kafka/MQ                     │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                  RESERVATION DOMAIN                      │
+│                                                         │
+│  Reserve → Earmark → Response → Confirmation            │
+└──────────────────────────┬──────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────┐
+│                   SETTLEMENT DOMAIN                      │
+│                                                         │
+│  Settlement → Consume/Release Earmark → Reconcile       │
+└─────────────────────────────────────────────────────────┘
+
+Bottom line
+
+Yes—support both resilient S3 and DC-specific storage. Make storage a pluggable infrastructure capability, keep DB-backed processing ownership independent of storage, and make batch/payment/messaging processing active-active across both DCs.
+
+That gives you a very strong failure model: loss of DC1 storage stops only DC1’s ability to discover/read new physical files; it does not stop already-ingested payment processing, BCBS messaging, settlement, or DC2 file intake.
+======
+Yes. I would make the application support either S3 or NFS, selected by configuration, while keeping the processing architecture identical.
+
+Recommended design
+
+                    ACH File Storage
+                          │
+             ┌────────────┴────────────┐
+             │                         │
+          S3 Mode                   NFS Mode
+             │                         │
+     ┌───────┴───────┐        ┌───────┴───────┐
+     │               │        │               │
+    DC1             DC2      DC1             DC2
+  Workers         Workers  Workers         Workers
+     │               │        │               │
+     └───────┬───────┘        └───────┬───────┘
+             │                         │
+             └────────────┬────────────┘
+                          ▼
+                    Incoming File
+                       Registry
+                          │
+                          ▼
+                    Shared Database
+                          │
+             ┌────────────┴────────────┐
+             ▼                         ▼
+       Batch Processing             Outbox
+             │                         │
+             └────────────┬────────────┘
+                          ▼
+                        Kafka
+                          │
+              ┌───────────┴───────────┐
+              ▼                       ▼
+          DC1 Workers              DC2 Workers
+              │                       │
+              └───────────┬───────────┘
+                          ▼
+                         BCBS
+
+Storage abstraction
+
+Define one logical capability:
+
+File Storage Provider
+
+with two implementations:
+
+Capability	S3	NFS
+File discovery	Object listing/polling	Directory polling
+Read	Object stream	File stream
+Checksum	Object metadata/content	File content
+Archive	Object copy/move	File move
+Delete/quarantine	Object operation	File operation
+Multi-DC	Naturally suitable if resilient	DC-specific
+File locking	DB ownership	DB ownership
+Partial upload protection	Completion convention	Stability/rename
+Application workflow	Same	Same
+
+The payment application should not know whether it is reading S3 or NFS.
+
+⸻
+
+Configuration
+
+Conceptually:
+
+FILE_STORAGE_TYPE = S3
+
+or:
+
+FILE_STORAGE_TYPE = NFS
+
+For NFS:
+
+DC1_INBOUND_PATH
+DC1_OUTBOUND_PATH
+DC2_INBOUND_PATH
+DC2_OUTBOUND_PATH
+
+For S3:
+
+S3_BUCKET
+S3_INBOUND_PREFIX
+S3_OUTBOUND_PREFIX
+
+The exact configuration names can be finalized during implementation.
+
+⸻
+
+Important difference in file detection
+
+S3
+
+Use:
+
+List objects
+     ↓
+Identify eligible object
+     ↓
+Verify completion
+     ↓
+Register object in DB
+
+Prefer a producer convention such as temporary object → completed object, or an explicit completion marker.
+
+NFS
+
+Use:
+
+Poll directory
+     ↓
+File detected
+     ↓
+Check size/timestamp stability
+     ↓
+Register file
+
+Do not rely exclusively on FileSystemWatcher for NFS.
+
+⸻
+
+The most important design decision
+
+Regardless of whether the file comes from S3 or NFS:
+
+              S3 / NFS
+                  │
+                  ▼
+             File Registry
+                  │
+                  ▼
+        Acquire Processing Ownership
+                  │
+                  ▼
+             Parse / Batch
+                  │
+                  ▼
+             Shared Database
+                  │
+                  ▼
+               Outbox
+                  │
+                  ▼
+                Kafka
+                  │
+          ┌───────┴───────┐
+          ▼               ▼
+        DC1              DC2
+      Workers          Workers
+          │               │
+          └───────┬───────┘
+                  ▼
+                 BCBS
+
+Storage determines where the physical file is read from; it must not determine which DC is allowed to process the resulting payment events.
+
+So your final requirement should state:
+
+The ACH application shall support S3 and NFS as interchangeable file-storage providers. The storage provider shall be configurable without changing business-processing logic. File ownership, batch ownership, payment processing, Outbox publishing, BCBS messaging, reservation processing, settlement processing, and reconciliation shall remain independent of the underlying file-storage technology.
+
+That gives you the flexibility to deploy with NFS initially and move to S3 later without redesigning the core ACH processing architecture.
+
+
