@@ -1,0 +1,517 @@
+Yes. This changes the architecture in an important way. Do not make the file-processing service and the BCBS messaging/response-processing service a single failover unit. Treat them as two independently scalable planes:
+
+1. File Processing Plane — DC-local
+2. Payment/Messaging Processing Plane — Active-Active across both DCs
+
+That allows DC2 to continue processing its own files when DC1 storage is unavailable, while all healthy containers in both DCs continue consuming and producing BCBS messages.
+
+Recommended architecture
+
+                         EXTERNAL VENDOR
+                               |
+                 ┌─────────────┴─────────────┐
+                 │                           │
+             DC1 Storage                 DC2 Storage
+                 │                           │
+        ┌────────┴────────┐        ┌────────┴────────┐
+        │                 │        │                 │
+     File Pod A        File Pod B File Pod C       File Pod D
+        │                 │        │                 │
+        └────────┬────────┘        └────────┬────────┘
+                 │                           │
+                 └─────────────┬─────────────┘
+                               │
+                         Shared Database
+                               │
+                     Transaction / Outbox
+                               │
+                       ┌───────┴───────┐
+                       │     Kafka     │
+                       │ / Enterprise  │
+                       │      MQ       │
+                       └───────┬───────┘
+                               │
+             ┌─────────────────┼─────────────────┐
+             │                 │                 │
+          DC1 Pods           DC1 Pods          DC2 Pods
+       BCBS Consumer       BCBS Producer    BCBS Consumer
+             │                 │                 │
+             └─────────────────┼─────────────────┘
+                               │
+                              BCBS
+
+The key principle
+
+Storage locality should not imply processing locality.
+
+A DC1 file can create a database/outbox record, and the resulting BCBS message can be consumed/produced by any healthy processing pod in DC1 or DC2, depending on your messaging topology.
+
+⸻
+
+1. Separate File Processing from Message Processing
+
+I recommend at least these logical workloads:
+
+File Intake Workers
+      │
+      ├── DC1 storage only
+      └── DC2 storage only
+Payment Processing Workers
+      │
+      └── Active-Active
+Outbox Publishers
+      │
+      └── Active-Active
+BCBS Response Consumers
+      │
+      └── Active-Active
+Settlement Workers
+      │
+      └── Active-Active
+Response File Generator
+      │
+      ├── DC1 storage
+      └── DC2 storage
+
+This is much more resilient than:
+
+File Reader
+   ↓
+Batch Worker
+   ↓
+BCBS
+   ↓
+Next Batch
+
+⸻
+
+2. DC Storage Failure Scenario
+
+Suppose:
+
+DC1 Storage = DOWN
+DC1 Containers = UP
+DC2 Storage = UP
+DC2 Containers = UP
+
+Do not let the DC1 containers continuously fail trying to process files.
+
+Instead:
+
+DC1 File Workers
+Storage Health Check
+        ↓
+      FAILED
+        ↓
+File Intake = PAUSED
+        ↓
+No new file processing
+
+But the same DC1 pods should continue operating their other workloads:
+
+DC1
+├── File Intake       PAUSED
+├── Payment Processing ACTIVE
+├── Outbox Publisher  ACTIVE
+├── BCBS Consumer     ACTIVE
+├── BCBS Producer     ACTIVE
+└── Settlement        ACTIVE
+
+And DC2:
+
+DC2
+├── File Intake       ACTIVE
+├── Payment Processing ACTIVE
+├── Outbox Publisher  ACTIVE
+├── BCBS Consumer     ACTIVE
+├── BCBS Producer     ACTIVE
+└── Settlement        ACTIVE
+
+This is exactly the behavior you are looking for.
+
+⸻
+
+3. Don’t Fail the Entire Pod Because Storage Is Down
+
+This is particularly important.
+
+Avoid:
+
+NFS unavailable
+     ↓
+Pod unhealthy
+     ↓
+Kubernetes restarts pod
+
+That doesn’t solve your problem because the storage will remain unavailable.
+
+Instead, separate health conditions:
+
+Liveness
+
+Means:
+
+Is the application process alive?
+
+Readiness for File Processing
+
+Means:
+
+Is this instance currently capable of processing its local file storage?
+
+Messaging readiness
+
+Means:
+
+Can this instance consume/produce messaging events?
+
+Therefore:
+
+Storage DOWN
+     │
+     ├── File Processing = NOT READY
+     │
+     └── Messaging = READY
+
+The pod remains alive.
+
+⸻
+
+4. File Worker Should Be DC-Aware
+
+Each File Worker should know:
+
+DC_ID = DC1
+INBOUND_PATH = /mnt/dc1/incoming
+
+DC2:
+
+DC_ID = DC2
+INBOUND_PATH = /mnt/dc2/incoming
+
+The application should never accidentally scan the other DC’s storage.
+
+⸻
+
+5. File Ownership
+
+The database remains the authoritative coordination mechanism.
+
+Example:
+
+INCOMING_FILE
+FILE_ID
+FILE_NAME
+SOURCE_DC
+STATUS
+OWNER_INSTANCE
+LEASE_EXPIRY
+CHECKSUM
+
+For example:
+
+FILE001
+DC1
+PROCESSING
+dc1-pod-17
+13:45:00
+
+If DC1 storage fails after the file has already been registered, you have a critical distinction:
+
+Case A — File completely ingested
+
+If the file has already been copied/parsed into durable processing state:
+
+DC1 File
+   ↓
+DB
+   ↓
+Payment records
+   ↓
+Outbox
+
+Then DC2 can continue the payment processing.
+
+Case B — File only partially read
+
+Do not allow DC2 to pretend it has the file if DC2 cannot access DC1 storage.
+
+The file needs to be recovered from:
+
+* replicated storage,
+* vendor resend,
+* object-store archive,
+* or another approved recovery mechanism.
+
+This distinction should be explicit in your DR design.
+
+⸻
+
+6. The Most Important Change: Decouple BCBS Processing
+
+After the payment is persisted:
+
+Payment
+   ↓
+EVENTS_OUTBOX
+   ↓
+Kafka
+
+From this point onward, there should be no dependency on the originating DC’s file storage.
+
+For example:
+
+DC1 File
+     ↓
+Shared DB
+     ↓
+Outbox
+     ↓
+Kafka
+     ↓
+ ┌───┴───────────────┐
+ │                   │
+DC1 BCBS Worker   DC2 BCBS Worker
+ │                   │
+ └─────────┬─────────┘
+           ↓
+          BCBS
+
+This gives you the active-active behavior you want.
+
+⸻
+
+7. Don’t Process “One Batch at a Time” Globally
+
+Your messaging architecture should not behave like:
+
+Batch 1
+   ↓
+BCBS
+   ↓
+Batch 2
+   ↓
+BCBS
+   ↓
+Batch 3
+
+Instead:
+
+                Kafka
+                  │
+       ┌──────────┼───────────┐
+       ▼          ▼           ▼
+    Worker 1   Worker 2    Worker 3
+       │          │           │
+       ▼          ▼           ▼
+     BCBS       BCBS        BCBS
+
+And across DCs:
+
+                    Kafka
+                      │
+       ┌──────────────┼───────────────┐
+       │              │               │
+       ▼              ▼               ▼
+   DC1 Worker      DC1 Worker      DC2 Worker
+       │              │               │
+       └──────────────┼───────────────┘
+                      ▼
+                     BCBS
+
+The exact Kafka partitioning/keying should be designed around your BCBS ordering requirements.
+
+⸻
+
+8. Important: Preserve Ordering Where Required
+
+You shouldn’t simply maximize parallelism.
+
+If BCBS requires ordering for an account/payment/customer, use an appropriate message key.
+
+For example:
+
+Account 1001 → Partition 1
+Account 1002 → Partition 2
+Account 1003 → Partition 3
+
+Then you can have:
+
+Partition 1 → Worker A
+Partition 2 → Worker B
+Partition 3 → Worker C
+
+while preserving ordering within the required business key.
+
+This gives you parallelism without violating business sequencing.
+
+⸻
+
+9. BCBS Producer Should Also Be Active-Active
+
+Don’t have:
+
+DC1 = producer
+DC2 = standby
+
+unless BCBS explicitly requires it.
+
+Prefer:
+
+DC1 BCBS Producer ──┐
+                    ├── BCBS
+DC2 BCBS Producer ──┘
+
+Both can produce messages.
+
+However, if BCBS has a strict requirement that only one connection/session/producer may be active, introduce a BCBS-specific ownership/lease mechanism rather than shutting down the entire processing platform.
+
+⸻
+
+10. Failure Example
+
+Normal
+
+DC1 Storage
+   ↓
+File Pod
+   ↓
+DB
+   ↓
+Outbox
+   ↓
+Kafka
+   ↓
+DC1/DC2 Workers
+   ↓
+BCBS
+
+DC1 Storage Failure
+
+DC1 Storage ❌
+DC1 File Processing ❌
+DC1 Messaging      ✅
+DC1 BCBS Consumer  ✅
+DC1 BCBS Producer  ✅
+DC1 Settlement     ✅
+DC2 Storage        ✅
+DC2 File Processing ✅
+DC2 Messaging       ✅
+DC2 BCBS Consumer   ✅
+DC2 BCBS Producer   ✅
+DC2 Settlement      ✅
+
+DC2 continues taking new files.
+
+Both DC1 and DC2 continue processing already-created payment events.
+
+That’s the architecture you want.
+
+⸻
+
+11. What Happens When DC1 Storage Comes Back?
+
+Do not immediately process everything blindly.
+
+Use:
+
+Storage recovered
+       ↓
+Health validation
+       ↓
+File scan
+       ↓
+Compare against INCOMING_FILE
+       ↓
+Identify unregistered files
+       ↓
+Identify incomplete files
+       ↓
+Acquire ownership
+       ↓
+Resume processing
+
+This prevents duplicate processing.
+
+⸻
+
+12. Recommended Workload Model
+
+For Kubernetes/OpenShift, I’d deploy these as separate Deployments:
+
+ach-file-intake-dc1
+ach-file-intake-dc2
+ach-payment-worker
+ach-outbox-publisher
+ach-bcbs-consumer
+ach-settlement-worker
+ach-response-aggregator
+ach-response-file-generator
+
+The first two are storage-local.
+
+The others are shared active-active processing workloads.
+
+You can scale them independently.
+
+For example:
+
+File Intake:
+DC1 = 2 pods
+DC2 = 2 pods
+Payment Workers:
+DC1 = 5 pods
+DC2 = 5 pods
+BCBS Consumers:
+DC1 = 5 pods
+DC2 = 5 pods
+Outbox Publishers:
+DC1 = 3 pods
+DC2 = 3 pods
+
+The numbers should ultimately come from load testing.
+
+⸻
+
+13. One More Important Design Point
+
+I would not make the database itself the mechanism that transfers files between DCs.
+
+Instead, the architecture should be:
+
+               FILE DOMAIN
+        ┌─────────────────────┐
+        │ DC1 File Storage    │
+        │ DC2 File Storage    │
+        └──────────┬──────────┘
+                   │
+                   ▼
+              File Intake
+                   │
+                   ▼
+             Durable DB
+                   │
+             ┌─────┴─────┐
+             │           │
+          Payment      Outbox
+             │           │
+             └─────┬─────┘
+                   ▼
+                 Kafka
+                   │
+        ┌──────────┼──────────┐
+        ▼          ▼          ▼
+      DC1          DC2       DC2
+    Workers      Workers    Workers
+        │          │          │
+        └──────────┼──────────┘
+                   ▼
+                  BCBS
+
+The file is a transport mechanism only. Once its business data is durably accepted, processing should become event-driven and independent of the source storage.
+
+The key architectural rule
+
+Storage failure should stop only file intake for that DC—not payment processing, Outbox publishing, BCBS consumption/production, settlement processing, or other already-ingested business workflows.
+
+This separation gives you much better resilience than traditional DC-level active/passive failover and is particularly appropriate for your ACH pre-fund → earmark → acknowledgement → settlement workflow.
