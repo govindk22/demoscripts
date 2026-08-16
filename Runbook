@@ -1,0 +1,764 @@
+
+For your ACH pre-fund reservation and settlement platform, the support/maintenance document should be more than a generic runbook. It should allow an L1/L2/L3 support engineer to answer “What happened, where is it stuck, what is safe to retry, and how do I recover it without creating a duplicate financial transaction?”
+
+I recommend structuring it into these sections:
+
+1. System Overview
+
+* Business purpose and scope
+* High-level architecture
+* End-to-end payment lifecycle
+* Major components/services
+* External systems and dependencies
+* Dual-DC architecture
+* Data flow
+* Kafka/MQ topics and consumers
+* Database overview
+* File-share locations
+* Environment topology
+
+2. Business Process
+
+Document the complete lifecycle:
+
+Inbound ACH File
+      ↓
+File Registration
+      ↓
+Validation
+      ↓
+Parsing
+      ↓
+Batch Processing
+      ↓
+Pre-Fund Request
+      ↓
+Funds Earmarked
+      ↓
+Reservation Response
+      ↓
+Response File
+      ↓
+Vendor Acknowledgement
+      ↓
+Reservation Confirmed
+      ↓
+Settlement
+      ↓
+Earmark Consumed/Released
+      ↓
+Completed
+
+For each state, document:
+
+* Meaning
+* Entry criteria
+* Exit criteria
+* Expected next states
+* Retryable conditions
+* Non-retryable conditions
+* Who/what changes the state
+* How support can investigate it
+
+⸻
+
+3. Component Support Matrix
+
+Create a table like:
+
+Component	Purpose	Criticality	Dependency	Failure Impact	Owner
+File Watcher	Detect files	High	NFS	Files not processed	L2
+File Processor	Parse ACH	Critical	DB/NFS	Payments delayed	L2/L3
+Reservation Service	Earmark funds	Critical	Fund System	Reservation unavailable	L3
+Outbox Publisher	Publish events	Critical	Kafka	Downstream delay	L2
+Response Processor	Handle responses	Critical	Kafka	Response backlog	L2/L3
+Settlement Processor	Complete settlement	Critical	DB/Fund System	Settlement delayed	L3
+
+⸻
+
+4. File Processing Operations
+
+Document:
+
+* Inbound directory
+* Outbound directory
+* Archive directory
+* Error/quarantine directory
+* File naming conventions
+* File stability rules
+* Polling interval
+* Duplicate detection
+* Checksum validation
+* File ownership
+* File lock/lease behavior
+* Maximum supported file size
+* Batch size
+* Parallelism configuration
+
+Include examples of normal and abnormal files.
+
+⸻
+
+5. File State Troubleshooting
+
+For every file status explain:
+
+RECEIVED
+VALIDATING
+VALIDATED
+PROCESSING
+WAITING_FOR_RESPONSE
+READY_FOR_RESPONSE
+RESPONSE_GENERATED
+ACK_PENDING
+COMPLETED
+FAILED
+MANUAL_REVIEW
+
+Provide:
+
+What does it mean?
+
+Why can it happen?
+
+How long should it remain there?
+
+What should support check?
+
+Can it be retried?
+
+Who is authorized to retry?
+
+⸻
+
+6. Batch Processing Runbook
+
+Document:
+
+* How batches are created
+* Batch size
+* Worker concurrency
+* Worker ownership
+* Lease timeout
+* Retry count
+* Batch statuses
+* How failed batches are identified
+* How to replay a batch
+* How to prevent duplicate processing
+* How to handle abandoned batches
+
+Example:
+
+Batch = PROCESSING
+Worker = pod-123
+Last heartbeat = 45 minutes ago
+→ Check pod
+→ Check transaction
+→ Verify lease expiration
+→ Confirm no active worker
+→ Requeue according to approved procedure
+
+⸻
+
+7. Pre-Fund Reservation Support
+
+Document the reservation lifecycle:
+
+REQUESTED
+   ↓
+PROCESSING
+   ↓
+RESERVED
+   ↓
+ACKNOWLEDGED
+   ↓
+CONFIRMED
+
+And failure states:
+
+INSUFFICIENT_FUNDS
+INVALID_ACCOUNT
+TIMEOUT
+TECHNICAL_FAILURE
+DUPLICATE
+MANUAL_REVIEW
+
+For each response code, provide:
+
+* Meaning
+* Source
+* Business impact
+* Retryable?
+* Expected action
+* Escalation group
+
+⸻
+
+8. Settlement Support
+
+Document:
+
+* How settlement arrives
+* How settlement is correlated
+* Validation rules
+* Amount matching
+* Duplicate detection
+* Earmark consumption/release
+* Settlement statuses
+* Retry process
+* Reconciliation process
+
+Especially document:
+
+What is safe to retry and what must never be manually retried?
+
+This is critical for financial systems.
+
+⸻
+
+9. Kafka/MQ Operations
+
+Document every important topic/queue:
+
+Topic	Producer	Consumer	Purpose	Retry	DLQ
+Reservation Request	Payment	Fund System	Reserve funds	Yes	Yes
+Reservation Response	Fund System	Payment	Reservation result	Yes	Yes
+Settlement	Settlement	Payment	Settlement result	Yes	Yes
+
+Include:
+
+* Topic naming
+* Partitioning
+* Consumer groups
+* Expected throughput
+* Retention
+* DLQ
+* Retry topics
+* Message correlation
+* Replay procedure
+* Duplicate handling
+* Consumer lag thresholds
+
+⸻
+
+10. Outbox Operations
+
+This deserves its own section.
+
+Document:
+
+Business Transaction
+        ↓
+EVENTS_OUTBOX
+        ↓
+Publisher
+        ↓
+Kafka
+
+Support should know how to identify:
+
+* Pending events
+* Publishing events
+* Published events
+* Failed events
+* Retry count
+* Stuck events
+* Oldest pending event
+
+Include an approved replay procedure.
+
+Never instruct support to simply delete an Outbox record.
+
+⸻
+
+11. Database Operations
+
+Document:
+
+* Database topology
+* Connection configuration
+* Connection pool
+* Important tables
+* Indexes
+* Expected growth
+* Partitioning if applicable
+* Backup
+* Restore
+* Archival
+* Database health checks
+
+Important tables might include:
+
+INCOMING_FILE
+PROCESSING_BATCH
+PAYMENT_TRANSACTION
+PREFUND_RESERVATION
+SETTLEMENT
+ACCOUNT_TRANSACTION
+EVENTS_OUTBOX
+AUDIT_EVENT
+RECONCILIATION
+
+Include relationships between them.
+
+⸻
+
+12. Reconciliation
+
+This should be one of the strongest sections.
+
+Support must be able to reconcile:
+
+File
+
+Input Records
+=
+Parsed Records
+
+Reservation
+
+Reservation Requests
+=
+Reservation Responses
+
+Response File
+
+Input Payments
+=
+Response File Payments
+
+Settlement
+
+Reservations
+=
+Settlements
++
+Outstanding Reservations
++
+Valid Exceptions
+
+Define expected reconciliation thresholds and escalation rules.
+
+⸻
+
+13. Monitoring & Alerting
+
+Define operational metrics and thresholds.
+
+File
+
+* Files waiting
+* Oldest file age
+* Files failed
+* Files processing time
+
+Processing
+
+* Payments/sec
+* Batch duration
+* Failed batches
+* Retry count
+
+Kafka
+
+* Consumer lag
+* Producer failures
+* DLQ count
+* Oldest message
+
+Database
+
+* Connection pool
+* Query latency
+* Lock waits
+* Deadlocks
+* Storage
+
+Reservation
+
+* Success rate
+* Failure rate
+* Outstanding requests
+* Response latency
+
+Settlement
+
+* Pending settlements
+* Failed settlements
+* Reconciliation exceptions
+
+⸻
+
+14. Alert Severity
+
+Define clear severity levels.
+
+P1
+
+Financial processing stopped or risk of incorrect financial processing.
+
+P2
+
+Major processing degradation or significant backlog.
+
+P3
+
+Limited functional degradation.
+
+P4
+
+Informational/maintenance.
+
+For each alert specify:
+
+Alert
+Condition
+Impact
+Initial checks
+Action
+Escalation
+
+⸻
+
+15. Common Incident Runbooks
+
+Create a dedicated runbook for each common failure.
+
+At minimum:
+
+1. File not detected
+2. File stuck in RECEIVED
+3. File stuck in PROCESSING
+4. Duplicate file
+5. Checksum mismatch
+6. Invalid NACHA
+7. Batch stuck
+8. Payment stuck in reservation
+9. Reservation response missing
+10. Kafka unavailable
+11. Kafka consumer lag
+12. Outbox backlog
+13. Database unavailable
+14. Database deadlock
+15. Vendor response file not generated
+16. Vendor acknowledgement missing
+17. Settlement missing
+18. Settlement mismatch
+19. Duplicate message
+20. Application pod crash
+21. Node failure
+22. DC failure
+23. Response file partially written
+24. Reconciliation failure
+
+⸻
+
+16. Recovery Procedures
+
+For each incident provide:
+
+Detection
+   ↓
+Impact Assessment
+   ↓
+Initial Investigation
+   ↓
+Safe Recovery
+   ↓
+Validation
+   ↓
+Reconciliation
+   ↓
+Close Incident
+
+The document should explicitly identify actions that are prohibited.
+
+For example:
+
+Do not manually change payment status or reservation status directly in production database without an approved recovery procedure and audit trail.
+
+⸻
+
+17. Restart and Failover Procedures
+
+Document what happens when:
+
+* Pod restarts
+* Deployment restarts
+* Database restarts
+* Kafka restarts
+* File share becomes unavailable
+* Reservation system becomes unavailable
+* Entire DC becomes unavailable
+
+Explain:
+
+What resumes automatically?
+
+What requires operator intervention?
+
+What requires reconciliation?
+
+⸻
+
+18. Deployment & Configuration
+
+Document:
+
+* Environment configuration
+* ConfigMaps
+* Secrets
+* Certificates
+* Database configuration
+* Kafka configuration
+* File-share configuration
+* Worker concurrency
+* Batch size
+* Retry configuration
+* Timeout configuration
+* Feature flags
+
+Clearly separate:
+
+Configuration that can be changed safely
+
+from
+
+Configuration requiring change approval
+
+⸻
+
+19. Security Operations
+
+Include:
+
+* Authentication
+* Authorization
+* Service accounts
+* Secrets
+* Certificates
+* Certificate expiry
+* Encryption
+* Account-data masking
+* Audit requirements
+* Access reviews
+* Production database access
+* File-share permissions
+
+⸻
+
+20. Capacity & Performance
+
+Document:
+
+* Maximum tested file size
+* Maximum tested payment count
+* Normal throughput
+* Peak throughput
+* Batch size
+* Worker count
+* Database capacity
+* Kafka capacity
+* Expected processing time
+
+Also document how to identify the bottleneck.
+
+⸻
+
+21. Maintenance Procedures
+
+Include procedures for:
+
+* Application deployment
+* Rolling restart
+* Database maintenance
+* Kafka maintenance
+* File-share maintenance
+* Certificate renewal
+* Secret rotation
+* Archival
+* Log cleanup
+* Database cleanup
+* Version upgrades
+
+⸻
+
+22. Data Retention & Archival
+
+Define retention for:
+
+* Original ACH files
+* Response files
+* Payments
+* Reservations
+* Settlements
+* Audit
+* Outbox
+* Logs
+* Reconciliation records
+
+Document how archived data is retrieved.
+
+⸻
+
+23. Operational Access
+
+Document which team can perform:
+
+* Read-only investigation
+* Retry
+* Replay
+* Manual review
+* Configuration change
+* Database operation
+* Production deployment
+
+Use clear L1/L2/L3 boundaries.
+
+⸻
+
+24. Support Escalation Matrix
+
+Example:
+
+Issue	L1	L2	L3	External
+File not detected	✓	✓		
+Parser failure		✓	✓	
+Kafka failure		✓	✓	
+Reservation failure		✓	✓	Fund System
+Settlement mismatch			✓	Settlement Team
+Account issue			✓	Account System
+Infrastructure failure		✓		Platform
+
+⸻
+
+25. Known Issues & Troubleshooting
+
+Maintain a living knowledge base containing:
+
+* Known defects
+* Workarounds
+* Error messages
+* Root causes
+* Permanent fixes
+* Related incidents
+* Version affected
+* Resolution
+
+⸻
+
+26. Release & Change Management
+
+For every release document:
+
+* Version
+* Functional changes
+* Database changes
+* Configuration changes
+* Kafka changes
+* File-format changes
+* Backward compatibility
+* Migration requirements
+* Rollback procedure
+* Validation checklist
+
+⸻
+
+27. Operational Checklists
+
+Have concise checklists for:
+
+Daily
+
+* System health
+* File backlog
+* Outbox backlog
+* Kafka lag
+* Reservation failures
+* Settlement exceptions
+* Reconciliation
+
+Weekly
+
+* Capacity
+* Failed messages
+* DLQ
+* Database growth
+* Certificate expiry
+* Error trends
+
+Monthly
+
+* DR readiness
+* Backup validation
+* Access review
+* Retention
+* Performance
+* Security review
+
+⸻
+
+28. Disaster Recovery
+
+Document:
+
+* RTO
+* RPO
+* DC failover
+* Database failover
+* Kafka failover
+* File-share failover
+* Application recovery
+* Data reconciliation after recovery
+
+Most importantly, document how to prove that no payment, reservation, or settlement was duplicated during failover.
+
+⸻
+
+29. Support Golden Rules
+
+Put these prominently at the beginning of the runbook:
+
+Never manually mark a payment as completed without reconciliation.
+
+Never replay a financial request without checking idempotency.
+
+Never delete an Outbox event to clear a backlog.
+
+Never manually modify account/reservation balances without an approved transaction/recovery mechanism.
+
+Always reconcile after recovery or replay.
+
+Always preserve the original ACH file and generated response file.
+
+⸻
+
+30. Recommended Document Structure
+
+For Confluence, I would organize the support space as:
+
+ACH Payment Platform
+│
+├── 01. System Overview
+├── 02. Architecture
+├── 03. Business Workflow
+├── 04. Application Components
+├── 05. File Processing Runbook
+├── 06. Pre-Fund Reservation Runbook
+├── 07. Settlement Runbook
+├── 08. Kafka / MQ Runbook
+├── 09. Database Runbook
+├── 10. Outbox / Retry Runbook
+├── 11. Reconciliation
+├── 12. Monitoring & Alerts
+├── 13. Incident Runbooks
+├── 14. Deployment & Maintenance
+├── 15. Security
+├── 16. Disaster Recovery
+├── 17. Capacity & Performance
+├── 18. Known Issues
+├── 19. Release Notes
+├── 20. Support Escalation
+└── 21. Operational Checklists
+
+The most important addition for your application is a “Payment Investigation Guide.” Give support a single File ID, Batch ID, Payment/Trace ID, Reservation ID, or Settlement ID and show exactly how they trace the transaction across database → Outbox → Kafka → downstream reservation → response → response file → acknowledgement → settlement. That will dramatically reduce L2/L3 troubleshooting time.
