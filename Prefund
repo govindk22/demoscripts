@@ -1,0 +1,634 @@
+Yes. I researched this, and there is an important distinction that will affect the design of your ACH refund/prefund application.
+
+1. The key finding
+
+If Fiserv is sending your bank an ACH-formatted file, the underlying file is very likely based on the standard NACHA 94-character fixed-width format.
+
+A standard ACH file is not simply:
+
+HEADER
+TRANSACTION
+TRANSACTION
+TRANSACTION
+TRAILER
+
+It is hierarchical:
+
+File Header (1)
+    ↓
+Batch Header (5)
+    ↓
+Entry Detail (6)
+    ↓
+Optional Addenda (7)
+    ↓
+Entry Detail
+    ↓
+...
+Batch Control (8)
+    ↓
+Batch Header (5)
+    ↓
+...
+Batch Control (8)
+    ↓
+File Control (9)
+    ↓
+Padding (9)
+
+Each record is exactly 94 characters. The file is normally blocked in groups of 10 records, with 9 records used for padding when necessary. 
+
+However, I could not find a publicly available Fiserv document that establishes a proprietary “Fiserv ACH refund request file” layout for your specific bank/vendor relationship. Fiserv’s public documentation confirms that its ACH products use NACHA-compliant processing and that its PEP+ platform supports prefunding, but institution/vendor-specific transmission layouts can be separately configured. 
+
+So I would not assume that the Fiserv vendor-to-bank pre-fund/refund file is exactly the standard NACHA file until you obtain the bank/Fiserv interface specification.
+
+⸻
+
+2. What Fiserv publicly documents about ACH
+
+Fiserv’s current PEP+ material identifies prefunding as an ACH capability. 
+
+More importantly, Fiserv has publicly documented an integration where PEP+ performs a real-time prefunding inquiry against the account system. In that integration, the downstream account system:
+
+1. Receives the prefunding inquiry.
+2. Validates the account.
+3. Checks available balance.
+4. Places a prefunding hold when configured to do so.
+5. Returns an availability/result response.
+6. Releases prefunding holds during subsequent ACH processing. 
+
+That is very close to the workflow you’ve been describing:
+
+Fiserv / ACH Processing
+        │
+        │ Prefund Request
+        ▼
+Bank Account System
+        │
+        ├── Validate account
+        ├── Check available funds
+        ├── Earmark / Hold
+        │
+        ▼
+     Response
+        │
+        ▼
+Fiserv / ACH Processing
+
+So your pre-fund reservation application is conceptually sound, but we should distinguish the NACHA settlement file from the internal/vendor-to-bank prefunding interface.
+
+⸻
+
+3. Standard NACHA file structure
+
+For your parser, I would start with this canonical model.
+
+FILE
+│
+├── FILE HEADER
+│
+├── BATCH 1
+│   ├── BATCH HEADER
+│   ├── ENTRY 1
+│   │   └── ADDENDA
+│   ├── ENTRY 2
+│   ├── ENTRY 3
+│   └── BATCH CONTROL
+│
+├── BATCH 2
+│   ├── BATCH HEADER
+│   ├── ENTRY 1
+│   ├── ENTRY 2
+│   └── BATCH CONTROL
+│
+└── FILE CONTROL
+
+Nacha explicitly describes the file, batch and transaction hierarchy and the corresponding header/control records. 
+
+⸻
+
+4. File Header — Record 1
+
+The standard File Header is 94 characters.
+
+Important fields:
+
+Position	Length	Field	Example
+1	1	Record Type	1
+2–3	2	Priority	01
+4–13	10	Immediate Destination	Routing number
+14–23	10	Immediate Origin	Origin routing/company
+24–29	6	Creation Date	260817
+30–33	4	Creation Time	0930
+34	1	File ID Modifier	A
+35–37	3	Record Size	094
+38–39	2	Blocking Factor	10
+40	1	Format Code	1
+41–63	23	Destination Name	Bank
+64–86	23	Origin Name	Originator
+87–94	8	Reference	Optional
+
+These positions and field lengths are documented by Nacha’s developer guide. 
+
+So the first three characters are normally:
+
+101
+
+⸻
+
+5. Batch Header — Record 5
+
+This is where the transaction group is defined.
+
+Important fields:
+
+Position	Length	Field
+1	1	Record Type
+2–4	3	Service Class
+5–20	16	Company Name
+21–40	20	Company Discretionary Data
+41–50	10	Company Identification
+51–53	3	SEC Code
+54–63	10	Company Entry Description
+64–69	6	Descriptive Date
+70–75	6	Effective Entry Date
+76–78	3	Settlement Date
+79	1	Originator Status
+80–87	8	ODFI Identification
+88–94	7	Batch Number
+
+For example:
+
+520...
+
+means:
+
+5 = Batch Header
+20x = Service Class
+
+Common service classes are:
+
+200 = Mixed Debits/Credits
+220 = Credits only
+225 = Debits only
+
+⸻
+
+6. Entry Detail — Record 6
+
+This is the actual payment transaction.
+
+For PPD/CCD-type entries:
+
+Position	Length	Field
+1	1	Record Type
+2–3	2	Transaction Code
+4–11	8	Receiving DFI
+12	1	Check Digit
+13–29	17	Account Number
+30–39	10	Amount
+40–54	15	Identification Number
+55–76	22	Individual/Company Name
+77–78	2	Discretionary Data
+79	1	Addenda Indicator
+80–94	15	Trace Number
+
+This is probably the most important record for your application.
+
+⸻
+
+7. Amount formation
+
+This is important for your implementation.
+
+ACH amount fields are numeric, implied decimal fields.
+
+For example:
+
+$1,234.56
+
+is represented as:
+
+0000123456
+
+because the last two digits represent cents.
+
+The field is 10 characters:
+
+$$$$$$$$$$
+
+with no decimal point.
+
+Therefore your parser should convert:
+
+0000012500
+
+to:
+
+125.00
+
+and:
+
+0001000000
+
+to:
+
+10,000.00
+
+Do not use floating-point types for monetary amounts. Use an appropriate fixed-precision decimal representation.
+
+⸻
+
+8. Transaction Code is critical
+
+The transaction code determines debit/credit and account type.
+
+For example:
+
+22 = Checking Credit
+27 = Checking Debit
+32 = Savings Credit
+37 = Savings Debit
+
+Nacha documents the transaction code in positions 2–3 of the Entry Detail record. 
+
+For a refund, this is particularly important because the business concept “refund” does not itself determine the ACH transaction code.
+
+You need to know whether the refund is being originated as a credit to the consumer’s account.
+
+Typically the ACH entry would therefore be a credit transaction, but the exact SEC code and authorization/business context must be established from the use case.
+
+⸻
+
+9. SEC Code
+
+Don’t confuse:
+
+REFUND
+
+with:
+
+SEC CODE
+
+They are different concepts.
+
+SEC identifies the ACH entry format/business classification.
+
+Common examples:
+
+PPD
+CCD
+WEB
+TEL
+CTX
+
+Nacha explains that the SEC code determines the nature of the transaction and the record format used for payment-related information. 
+
+For example:
+
+Consumer refund
+        ↓
+Potentially PPD
+        ↓
+ACH Credit
+
+But if your specific Fiserv/bank relationship uses a corporate/business refund, the SEC could be different.
+
+Do not hard-code PPD.
+
+Make it configuration-driven.
+
+⸻
+
+10. Addenda — Record 7
+
+An Entry Detail can optionally be followed by an Addenda record.
+
+This becomes important if Fiserv provides:
+
+* Original transaction reference
+* Refund reason
+* Remittance information
+* Original trace number
+* Additional payment information
+
+The exact Addenda structure depends on the SEC/application.
+
+Your parser should therefore model:
+
+Payment
+   │
+   ├── Entry Detail
+   │
+   └── 0..N Addenda
+
+rather than assuming one payment equals exactly one 94-character line.
+
+⸻
+
+11. Batch Trailer — Record 8
+
+The Batch Control record contains reconciliation information.
+
+Important fields include:
+
+* Service Class
+* Entry/Addenda count
+* Entry hash
+* Total debit amount
+* Total credit amount
+* Company ID
+* Originating DFI
+* Batch number
+
+For your application, this is extremely important.
+
+Don’t merely parse it.
+
+Recalculate it and compare it with the file.
+
+⸻
+
+12. File Trailer — Record 9
+
+The File Control record contains:
+
+* Batch count
+* Block count
+* Entry/Addenda count
+* Entry hash
+* Total debit amount
+* Total credit amount
+
+Your validation should calculate:
+
+Actual Batch Count
+        =
+Trailer Batch Count
+
+and:
+
+Actual Entry Count
+        =
+Trailer Entry/Addenda Count
+
+and:
+
+Calculated Debit Total
+        =
+Trailer Debit Total
+
+and:
+
+Calculated Credit Total
+        =
+Trailer Credit Total
+
+and:
+
+Calculated Entry Hash
+        =
+Trailer Entry Hash
+
+This should happen before the file is accepted for financial processing.
+
+⸻
+
+13. Hash calculation
+
+The Entry Hash is not a cryptographic SHA-256 checksum.
+
+It is an ACH control total based on the Receiving DFI Identification values.
+
+For a batch:
+
+Entry Hash =
+sum of Receiving DFI Identification
+
+with the defined truncation/formatting rules.
+
+Nacha documents this specifically for the Batch Control record. 
+
+So you should have two completely different concepts:
+
+File SHA-256
+     ↓
+Detect duplicate physical file
+ACH Entry Hash
+     ↓
+Validate NACHA financial/control integrity
+
+Don’t mix these two.
+
+⸻
+
+14. Padding records
+
+A NACHA file has a blocking factor of 10.
+
+If the number of records isn’t divisible by 10, padding records containing 9s are added.
+
+For example:
+
+Record 1
+Record 2
+...
+Record 97
+Record 98
+Record 99
+Record 100
+
+No additional padding is needed.
+
+But if there are 96 records:
+
+96 actual records
++
+4 padding records
+=
+100 records
+
+Nacha confirms the blocking factor of 10 and 9 padding behavior. 
+
+⸻
+
+15. How I would model your Fiserv refund/prefund file
+
+I would not initially design your parser as simply:
+
+Header
+Transactions
+Trailer
+
+Instead:
+
+ACH File
+│
+├── File Header
+│
+├── Batch
+│   ├── Batch Header
+│   ├── Payment Entry
+│   │   ├── Entry Detail
+│   │   └── Addenda*
+│   ├── Payment Entry
+│   └── Batch Control
+│
+├── Batch
+│   ├── Batch Header
+│   ├── Payment Entry
+│   └── Batch Control
+│
+└── File Control
+
+Then your business layer converts that NACHA structure into:
+
+Refund Request
+│
+├── Vendor Reference
+├── Account
+├── Routing Number
+├── Amount
+├── Currency
+├── Effective Date
+├── SEC Code
+├── Transaction Code
+├── Original Payment Reference
+├── Original Trace Number
+├── Addenda
+└── Correlation Information
+
+That separation is very important.
+
+⸻
+
+16. Where your Pre-Fund workflow fits
+
+I would architect it as:
+
+                 Fiserv
+                   │
+                   │ ACH / Vendor File
+                   ▼
+             File Intake
+                   │
+                   ▼
+             NACHA Parser
+                   │
+                   ▼
+           Structural Validation
+                   │
+                   ▼
+          Business Validation
+                   │
+                   ▼
+          Payment Transactions
+                   │
+                   ▼
+       ┌─────────────────────────┐
+       │ Pre-Fund Reservation    │
+       │                         │
+       │ Account validation      │
+       │ Available balance       │
+       │ Earmark                  │
+       └────────────┬────────────┘
+                    │
+                    ▼
+             Reservation Response
+                    │
+                    ▼
+             Response Aggregator
+                    │
+                    ▼
+             Fiserv Response File
+                    │
+                    ▼
+              Acknowledgement
+                    │
+                    ▼
+             Reservation Confirmed
+                    │
+                    ▼
+                Settlement
+
+Fiserv’s public PEP+ material supports the concept of prefunding/holds and ACH file exchange, including processing of posting/return/settlement files in its integrated environments. 
+
+⸻
+
+17. Important distinction: Refund vs Return
+
+This is very important for your requirements.
+
+A refund is generally a new payment/credit transaction intended to send money back to someone.
+
+An ACH return is the return of an existing ACH entry under the ACH return framework.
+
+They are not interchangeable.
+
+So if Fiserv is sending:
+
+“Please refund $250 to customer account XYZ”
+
+that is different from:
+
+“Return the previously received ACH entry because of R01/R02/etc.”
+
+Your application should therefore have separate business models:
+
+ACH Refund Request
+
+and:
+
+ACH Return
+
+even though both may ultimately use NACHA records.
+
+⸻
+
+18. What we still need from Fiserv
+
+The public information lets us confidently design the NACHA parser and processing architecture, but I would not invent the Fiserv-specific refund interface fields.
+
+For the actual implementation, obtain the Fiserv/bank interface specification containing:
+
+* File naming convention
+* Transport mechanism
+* File header requirements
+* Batch requirements
+* SEC code
+* Transaction codes
+* Refund-specific fields
+* Original transaction reference
+* Original trace number
+* Addenda requirements
+* Response file format
+* Acknowledgement format
+* Error codes
+* Retry rules
+* File cutoff times
+* Duplicate-file rules
+* Checksum requirements
+* Encryption/signing requirements
+* Expected response SLA
+
+Fiserv itself states that ACH input files must comply with both Fiserv specifications and NACHA requirements, which is exactly why the Fiserv-specific interface document matters. 
+
+⸻
+
+Recommended next step
+
+If you can provide one real/sanitized Fiserv refund or prefund sample file (even with account numbers, names, routing numbers, and references masked), I can reverse-engineer it record-by-record and field-by-field against the NACHA specification.
+
+I can produce a table like:
+
+Record	Position	Length	Actual Sample	Meaning	Validation	Your DB Field
+1	1	1	1	File Header	Must = 1	file_record_type
+1	4–13	10	...	Destination	Valid routing	destination
+5	51–53	3	PPD	SEC Code	Allowed SEC	sec_code
+6	2–3	2	22	Credit Checking	Valid code	transaction_code
+6	30–39	10	0000012500	$125.00	Numeric	amount
+6	80–94	15	...	Trace Number	Required/unique	trace_number
+8	5–10	6	...	Entry Count	Recalculate	entry_count
+9	2–7	6	...	Batch Count	Recalculate	batch_count
+
+That would be the safest way to determine exactly what Fiserv is sending you, rather than assuming that every Fiserv prefund/refund interface uses the standard NACHA submission format.
