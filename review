@@ -1,0 +1,740 @@
+Yes. For an enterprise Java + React application, I would use **separate prompts for Java backend, React frontend, and cross-cutting architecture**, then a consolidated scoring model. The prompts below are designed for an AI code-review agent such as Claude Code, Copilot, or your own code-insight platform.
+
+# 1. Enterprise Java Code Review Prompt
+
+```text
+Act as a Principal Java Architect and Enterprise Code Reviewer.
+
+Review the provided Java codebase as if it were a production-critical enterprise banking/payment application.
+
+Do not merely identify syntax issues or style violations. Evaluate the code for long-term maintainability, changeability, complexity, reliability, scalability, testability, security, observability, and operational supportability.
+
+Analyze the complete codebase where possible. Establish relationships between classes, packages, services, repositories, configuration, database access, messaging, external integrations, and tests before making recommendations.
+
+Evaluate the following areas.
+
+1. ARCHITECTURE
+- Assess package/module boundaries.
+- Identify violations of separation of concerns.
+- Identify inappropriate coupling between layers.
+- Identify business logic leaking into controllers, repositories, configuration, or infrastructure.
+- Identify circular dependencies.
+- Evaluate dependency direction.
+- Evaluate Clean Architecture / Hexagonal Architecture suitability.
+- Identify inappropriate shared utilities or god modules.
+- Identify architectural patterns that make future changes difficult.
+
+2. MAINTAINABILITY
+- Assess readability and consistency.
+- Identify duplicated logic.
+- Identify large classes and methods.
+- Identify unclear abstractions.
+- Identify magic values and hidden assumptions.
+- Identify code that requires excessive knowledge to modify safely.
+- Identify fragile implementation patterns.
+- Identify unnecessary abstractions.
+- Identify code that is difficult for a new engineer to understand.
+- Recommend concrete simplifications.
+
+3. CHANGEABILITY
+For every major component, answer:
+- How difficult would it be to change this component?
+- What other components would likely be affected?
+- Does a small requirement change require changes across many layers?
+- Are business rules isolated?
+- Are external integrations isolated behind abstractions?
+- Are configuration changes separated from code changes?
+- Can new payment types/features be added without modifying unrelated functionality?
+- Identify areas with high change amplification.
+
+4. COMPLEXITY
+Measure or estimate:
+- Cyclomatic complexity
+- Cognitive complexity
+- Method length
+- Class size
+- Nesting depth
+- Parameter count
+- Dependency count
+- Inheritance depth
+- Coupling
+- Cohesion
+
+Identify the top complexity hotspots.
+
+Do not recommend splitting code merely because it is long. Determine whether the complexity represents real business complexity or accidental technical complexity.
+
+5. SOLID
+Evaluate:
+- Single Responsibility
+- Open/Closed
+- Liskov Substitution
+- Interface Segregation
+- Dependency Inversion
+
+Identify actual violations and explain their maintenance impact.
+
+6. OBJECT-ORIENTED DESIGN
+Evaluate:
+- Encapsulation
+- Immutability
+- Domain modeling
+- Value objects
+- Entity boundaries
+- Inheritance vs composition
+- Mutable shared state
+- Constructor design
+- Responsibility allocation
+
+7. ERROR HANDLING
+Review:
+- Exception hierarchy
+- Exception propagation
+- Generic catch blocks
+- Swallowed exceptions
+- Incorrect retry behavior
+- Error classification
+- Business vs technical errors
+- Logging of exceptions
+- Error context
+- Transaction rollback behavior
+
+Identify cases where failures could result in incorrect business state.
+
+8. CONCURRENCY
+Review:
+- Thread safety
+- Shared mutable state
+- Synchronization
+- Locks
+- Executor usage
+- CompletableFuture usage
+- Reactive concurrency
+- Race conditions
+- Deadlocks
+- Duplicate processing
+- Idempotency
+- Transaction boundaries
+
+Pay particular attention to financial/payment processing.
+
+9. DATABASE AND TRANSACTION MANAGEMENT
+Review:
+- Transaction boundaries
+- N+1 queries
+- Inefficient queries
+- Connection management
+- Transaction propagation
+- Isolation level
+- Optimistic/pessimistic locking
+- Batch processing
+- Pagination
+- Index assumptions
+- ORM misuse
+- Lazy loading
+- Entity lifecycle
+- Database coupling
+
+Identify potential production-scale performance issues.
+
+10. PERFORMANCE AND SCALABILITY
+Evaluate:
+- CPU-intensive operations
+- Memory usage
+- Object creation
+- Collection usage
+- Serialization
+- Large payload handling
+- File processing
+- Database access
+- Network calls
+- Thread pools
+- Connection pools
+- Caching
+
+Determine whether the code can scale horizontally.
+
+11. MESSAGING
+If Kafka/MQ/event processing exists, review:
+- Producer reliability
+- Consumer idempotency
+- Message ordering
+- Partitioning
+- Retry behavior
+- Dead-letter handling
+- Offset management
+- Duplicate messages
+- Transactional messaging
+- Outbox/inbox patterns
+- Poison messages
+
+12. SECURITY
+Review:
+- Authentication
+- Authorization
+- Input validation
+- Injection risks
+- Secrets
+- Sensitive data
+- Logging of PII/financial information
+- Cryptography
+- TLS configuration
+- Dependency vulnerabilities
+- Deserialization
+- File handling
+- SSRF
+- Path traversal
+
+13. TESTABILITY
+Evaluate:
+- Unit-testability
+- Dependency injection
+- Mockability
+- Deterministic behavior
+- Static/global state
+- Integration-test boundaries
+- Test data construction
+- Business rule isolation
+
+Identify code that is difficult to test and explain why.
+
+14. TEST QUALITY
+Review existing tests for:
+- Business coverage
+- Edge cases
+- Failure paths
+- Concurrency
+- Idempotency
+- Integration behavior
+- Regression protection
+- Meaningful assertions
+
+Do not equate code coverage percentage with quality.
+
+15. OBSERVABILITY
+Evaluate:
+- Structured logging
+- Correlation IDs
+- Metrics
+- Tracing
+- Business metrics
+- Error context
+- Sensitive-data masking
+- Diagnostic information
+
+16. CONFIGURATION
+Evaluate:
+- Hard-coded values
+- Environment-specific logic
+- Configuration sprawl
+- Secret handling
+- Feature flags
+- Runtime configuration
+- Defaults
+
+17. DEPENDENCIES
+Review:
+- Outdated dependencies
+- Unnecessary dependencies
+- Duplicate libraries
+- Transitive dependency risks
+- Framework coupling
+- Internal library coupling
+
+18. API DESIGN
+Evaluate:
+- REST semantics
+- DTO/entity separation
+- Validation
+- Versioning
+- Error contracts
+- Pagination
+- Idempotency
+- Backward compatibility
+
+19. FILE PROCESSING
+If file processing exists, review:
+- Streaming vs loading entire files
+- Large-file memory usage
+- Partial files
+- Duplicate files
+- Checksum validation
+- Retry/restart behavior
+- Batch processing
+- File locking
+- NFS/S3 compatibility
+
+20. DOCUMENTATION
+Assess whether the code communicates:
+- Business intent
+- Non-obvious decisions
+- Integration contracts
+- Failure behavior
+- Operational requirements
+
+Do not recommend comments that merely repeat the code.
+
+OUTPUT
+
+Produce:
+
+A. Executive Summary
+B. Architecture Assessment
+C. Maintainability Score /10
+D. Changeability Score /10
+E. Complexity Score /10
+F. Reliability Score /10
+G. Scalability Score /10
+H. Testability Score /10
+I. Security Score /10
+J. Observability Score /10
+K. Overall Engineering Quality Score /100
+
+Then provide:
+
+Top 20 Findings
+
+For each finding:
+- ID
+- Severity
+- Category
+- File
+- Class/method
+- Problem
+- Why it matters
+- Business/operational impact
+- Recommended change
+- Implementation complexity
+- Risk of changing it
+- Suggested priority
+
+Classify severity:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+INFO
+
+Finally identify:
+
+1. Top 5 refactoring opportunities
+2. Top 5 architectural risks
+3. Top 5 technical-debt hotspots
+4. Top 5 areas likely to cause future change problems
+5. Quick wins achievable in <1 day
+6. Improvements requiring architectural change
+7. Code that should NOT be refactored because current complexity is justified
+```
+
+# 2. Enterprise React Code Review Prompt
+
+```text
+Act as a Principal Frontend Architect specializing in enterprise React and TypeScript applications.
+
+Review the complete React codebase for production enterprise quality.
+
+Focus on maintainability, changeability, complexity, performance, reliability, accessibility, security, testability, state management, API integration, and long-term evolution.
+
+Do not limit the review to lint/style issues.
+
+Evaluate:
+
+1. APPLICATION ARCHITECTURE
+- Component boundaries
+- Feature/module boundaries
+- Shared components
+- Dependency direction
+- Business logic placement
+- API/service separation
+- State ownership
+- Circular dependencies
+- Reusable abstractions
+
+2. COMPONENT DESIGN
+Review:
+- Component size
+- Component responsibility
+- Props complexity
+- Prop drilling
+- Conditional rendering complexity
+- Reusable components
+- Container/presentation separation where appropriate
+- Controlled/uncontrolled components
+- Component coupling
+
+Identify "god components".
+
+3. MAINTAINABILITY
+Evaluate:
+- Duplication
+- Naming
+- Component complexity
+- Hook complexity
+- Hidden dependencies
+- Magic values
+- Repeated UI logic
+- Repeated API logic
+- Difficult-to-understand state transitions
+
+4. CHANGEABILITY
+Determine:
+- How difficult is it to change a business feature?
+- How many components must change for a simple requirement?
+- Are UI components coupled to backend contracts?
+- Are business rules isolated?
+- Can API contracts change without widespread UI changes?
+- Can a feature be removed without affecting unrelated features?
+
+5. TYPESCRIPT QUALITY
+Review:
+- any usage
+- unknown vs any
+- interfaces/types
+- type narrowing
+- generics
+- null/undefined handling
+- unsafe casts
+- API response typing
+- discriminated unions
+- domain types
+
+Identify places where TypeScript is being bypassed.
+
+6. STATE MANAGEMENT
+Evaluate:
+- Local state
+- Global state
+- Server state
+- Context
+- Redux/Zustand/etc. if used
+- Derived state
+- State duplication
+- Stale state
+- Race conditions
+- Cache invalidation
+
+7. REACT HOOKS
+Review:
+- useEffect
+- useMemo
+- useCallback
+- custom hooks
+- dependency arrays
+- side effects
+- cleanup
+- stale closures
+- unnecessary memoization
+- infinite render risks
+
+8. PERFORMANCE
+Evaluate:
+- unnecessary renders
+- large lists
+- virtualization
+- bundle size
+- lazy loading
+- code splitting
+- expensive calculations
+- memoization
+- network calls
+- caching
+- image/resource optimization
+
+9. API INTEGRATION
+Review:
+- API abstraction
+- error handling
+- retry
+- timeout
+- cancellation
+- loading states
+- optimistic updates
+- stale data
+- pagination
+- API versioning
+- backward compatibility
+
+10. ERROR HANDLING
+Review:
+- Error boundaries
+- API failures
+- validation errors
+- retry behavior
+- user-visible errors
+- fallback UI
+- partial failure
+- network outage behavior
+
+11. FORMS
+Evaluate:
+- validation
+- server-side validation
+- client-side validation
+- duplicate submissions
+- dirty state
+- error display
+- accessibility
+- large forms
+- reusable form components
+
+12. SECURITY
+Review:
+- XSS
+- unsafe HTML
+- token storage
+- authorization
+- sensitive information
+- browser storage
+- CSRF considerations
+- URL manipulation
+- file upload
+- dependency vulnerabilities
+
+13. ACCESSIBILITY
+Review:
+- semantic HTML
+- keyboard navigation
+- labels
+- focus management
+- screen readers
+- ARIA usage
+- color-independent meaning
+- error accessibility
+
+14. TESTABILITY
+Evaluate:
+- component testability
+- mocking
+- API abstraction
+- deterministic state
+- integration tests
+- end-to-end tests
+- business scenario coverage
+
+15. UI CONSISTENCY
+Evaluate:
+- design system usage
+- duplicated styling
+- inconsistent components
+- spacing
+- validation behavior
+- error behavior
+- loading behavior
+
+16. OBSERVABILITY
+Review:
+- frontend errors
+- correlation IDs
+- user journey tracking
+- performance metrics
+- API failures
+- logging
+- privacy
+
+OUTPUT
+
+Produce:
+- Executive Summary
+- Architecture Assessment
+- Maintainability /10
+- Changeability /10
+- Complexity /10
+- Performance /10
+- Security /10
+- Accessibility /10
+- Testability /10
+- Overall Score /100
+
+Then provide the Top 20 Findings with:
+ID
+Severity
+Category
+File
+Component/hook
+Problem
+Impact
+Recommended change
+Implementation complexity
+Priority
+```
+
+# 3. Cross-Stack Enterprise Review
+
+For your **Java + React payment applications**, I would also run a third review specifically across the frontend/backend boundary.
+
+```text
+Act as an Enterprise Solution Architect.
+
+Review the Java backend and React frontend together.
+
+Do not review the two applications independently only. Identify problems that exist because of the interaction between them.
+
+Evaluate:
+
+1. API contract consistency
+2. DTO/schema compatibility
+3. Nullability differences
+4. Enum compatibility
+5. Date/time handling
+6. Currency/decimal precision
+7. Error contract consistency
+8. Validation duplication
+9. Authorization consistency
+10. Pagination behavior
+11. Sorting/filtering
+12. Idempotency
+13. Retry behavior
+14. Timeout behavior
+15. Concurrent update handling
+16. Optimistic concurrency
+17. Long-running operations
+18. File upload/download behavior
+19. Large payload handling
+20. API version compatibility
+21. Backward compatibility
+22. Security headers
+23. Authentication/token lifecycle
+24. Sensitive data exposure
+25. Correlation IDs
+26. Distributed tracing
+27. Audit requirements
+28. Business state consistency
+29. Transaction boundaries
+30. User-visible representation of backend state
+
+Identify situations where:
+
+- Backend behavior is difficult for frontend developers to understand.
+- Frontend assumes behavior that backend does not guarantee.
+- Backend changes can unexpectedly break the frontend.
+- Frontend retries could cause duplicate financial operations.
+- UI displays stale or misleading financial information.
+- Error responses cannot be mapped reliably to user actions.
+- State transitions are inconsistent between UI and backend.
+
+For every finding provide:
+- Backend location
+- Frontend location
+- Contract involved
+- Failure scenario
+- Business impact
+- Recommended architectural solution
+- Compatibility risk
+- Priority
+```
+
+# 4. Changeability Analysis — Particularly Useful
+
+For your code-insight platform, I'd add a dedicated **Change Impact Analysis** prompt.
+
+```text
+Analyze the codebase specifically for future changeability.
+
+Assume the following business changes may occur:
+
+1. Add a new payment type.
+2. Add a new authorization level.
+3. Add a new external payment provider.
+4. Change an existing API field.
+5. Add a new response code.
+6. Add a new workflow state.
+7. Change database provider.
+8. Change Kafka/MQ implementation.
+9. Add a new UI workflow.
+10. Add a new validation rule.
+
+For each change:
+
+- Identify files likely to change.
+- Identify components likely to be affected.
+- Identify hidden dependencies.
+- Identify duplicated business logic.
+- Identify regression risks.
+- Estimate change propagation.
+- Estimate implementation complexity.
+- Identify tests that must change.
+- Identify areas lacking abstraction.
+- Recommend architecture improvements.
+
+Calculate a Change Amplification Score:
+
+Low:
+1–3 components affected
+
+Medium:
+4–10 components
+
+High:
+11–20 components
+
+Very High:
+20+ components or cross-layer changes.
+
+Identify the five areas where a small requirement change would cause disproportionately large implementation effort.
+```
+
+# 5. Complexity / Maintainability Scoring
+
+For your platform, I'd standardize the scoring rather than allowing the AI to give arbitrary opinions.
+
+| Dimension               | Weight |
+| ----------------------- | -----: |
+| Architecture            |    15% |
+| Maintainability         |    15% |
+| Changeability           |    15% |
+| Complexity              |    10% |
+| Reliability             |    10% |
+| Security                |    10% |
+| Performance/Scalability |    10% |
+| Testability             |    10% |
+| Observability           |     5% |
+
+Then:
+
+```text
+90–100  Excellent
+80–89   Strong
+70–79   Acceptable
+60–69   Needs Improvement
+40–59   High Technical Debt
+<40     Critical
+```
+
+## 6. The Most Valuable Output for Your Code-Insight Platform
+
+Don't stop at a list of bugs. Generate a **Code Health / Changeability Report** such as:
+
+```text
+Project: Payment-Service
+
+Overall: 76/100
+
+Architecture             82
+Maintainability           71
+Changeability             64
+Complexity                58
+Reliability               84
+Security                  89
+Scalability               76
+Testability               68
+Observability             73
+```
+
+Then identify:
+
+```text
+Top Changeability Risks
+
+1. PaymentService has 17 downstream dependencies
+2. Authorization rules duplicated in 6 classes
+3. Kafka implementation coupled to domain service
+4. Database entities exposed through API
+5. React components directly depend on backend DTOs
+```
+
+And most importantly:
+
+**"What will happen if we change X?"**
+
+That makes the review substantially more useful to an enterprise tech lead than a conventional SonarQube-style code-quality report. It also fits very well with the **implementation-confidence/change-impact analysis** approach you've been considering for your source-code analysis platform.
