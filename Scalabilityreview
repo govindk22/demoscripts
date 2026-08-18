@@ -1,62 +1,69 @@
 
-Below is an enterprise-grade .NET Core review prompt designed for a production banking/payment application. It is intentionally focused beyond code style: scalability, threading, concurrency, consistency, resilience, exploitability, security, database behavior, messaging, Kubernetes, and operational failure modes.
+Below is a consolidated enterprise-grade .NET Core code, architecture, security, scalability, concurrency, memory, resource-lifecycle, Kubernetes, and multi-data-center review prompt. It is designed for a production-critical banking/payment application running as multiple Kubernetes instances across dual data centers.
 
-You can give this directly to Claude Code, Copilot, or your internal code-review agent.
-
-⸻
-
-Enterprise .NET Core Application — Deep Architecture & Code Review Prompt
-
+ENTERPRISE .NET CORE / ASP.NET CORE
+DEEP CODE, ARCHITECTURE, SECURITY, SCALABILITY & MULTI-DC REVIEW
+ROLE
 Act as a Principal .NET Architect, Distributed Systems Architect,
-Application Security Architect, and Performance Engineer.
-Perform a deep enterprise-level review of this complete .NET / ASP.NET Core
-application.
-Assume the application is production-critical and may process high transaction
-volumes, financial/payment data, asynchronous messages, large files, and
-concurrent requests.
-Do NOT perform only a style review or static-analysis review.
-Analyze the source code, project structure, dependencies, configuration,
-database access, messaging, background workers, API controllers, services,
-repositories, middleware, models, tests, Docker/container configuration,
-Kubernetes/OpenShift manifests, and infrastructure-related code where
-available.
-The objective is to identify:
-- Scalability risks
-- Concurrency defects
-- Threading problems
-- Data consistency problems
-- Race conditions
-- Deadlocks
-- Memory leaks
-- Resource exhaustion
-- Security vulnerabilities
-- Exploitability
-- Reliability problems
-- Distributed-system failures
-- Database bottlenecks
-- Messaging failures
-- Performance problems
-- Maintainability problems
-- Operational risks
-- Disaster/recovery weaknesses
-Do not assume that code is safe merely because it compiles or passes tests.
-For every significant finding, explain:
-WHAT is wrong,
-WHY it is wrong,
-HOW it can fail,
-WHETHER it is exploitable,
-HOW likely it is,
-WHAT the production impact is,
-and HOW it should be fixed.
+Cloud/Kubernetes Architect, Application Security Architect,
+Performance Engineer, Database Architect, and Site Reliability Engineer.
+Perform a deep review of the complete .NET / ASP.NET Core application.
+Assume this is a production-critical enterprise banking/payment application
+that may process high transaction volumes, large files, asynchronous Kafka/MQ
+messages, database transactions, external APIs, and financial state changes.
+The application is deployed as multiple container instances across multiple
+Kubernetes/OpenShift clusters and multiple data centers.
+Do NOT perform only:
+- syntax review
+- code-style review
+- lint review
+- superficial SOLID review
+Analyze the actual runtime behavior of the system under:
+- high concurrency
+- high transaction volume
+- large files
+- multiple application instances
+- multiple data centers
+- pod restarts
+- rolling deployments
+- node failures
+- database failures
+- Kafka/MQ failures
+- network failures
+- downstream failures
+- retries
+- duplicate messages
+- delayed messages
+- concurrent updates
+- storage failures
+- memory pressure
+- CPU pressure
+- Kubernetes scaling
+The objective is to determine whether the application is:
+- Correct
+- Secure
+- Scalable
+- Thread-safe
+- Memory-safe
+- Resource-safe
+- Horizontally scalable
+- Multi-instance safe
+- Multi-DC safe
+- Failure resilient
+- Financially consistent
+- Observable
+- Maintainable
+- Changeable
+- Operationally supportable
 ============================================================
-1. ARCHITECTURE REVIEW
+1. APPLICATION ARCHITECTURE
 ============================================================
-Analyze:
-- Application architecture
+Review:
+- Overall architecture
 - Layering
-- Dependency direction
-- Service boundaries
 - Domain boundaries
+- Service boundaries
+- Dependency direction
 - Separation of concerns
 - Dependency injection
 - Infrastructure coupling
@@ -64,64 +71,174 @@ Analyze:
 - Shared state
 - God classes
 - God services
-- Excessive abstraction
-- Missing abstraction
-- Tight coupling
-- Distributed transaction assumptions
-- Service-to-service dependencies
-Identify architectural decisions that prevent:
+- Utility classes
+- Static state
+- Singleton state
+- Service boundaries
+- External integration boundaries
+Determine whether the application follows appropriate principles such as:
+- Clean Architecture
+- Hexagonal Architecture
+- Domain-oriented design
+- SOLID
+- Dependency inversion
+Identify architecture that prevents:
 - Horizontal scaling
 - Independent deployment
-- Independent failure recovery
+- Independent recovery
 - Parallel processing
 - Testing
-- Future technology changes
-Determine whether the application is:
-- Stateless
-- Horizontally scalable
-- Multi-instance safe
-- Multi-region/DC safe
-- Container safe
+- Technology replacement
+- Future feature changes
 ============================================================
-2. SCALABILITY REVIEW
+2. MULTI-INSTANCE DEPLOYMENT
 ============================================================
-Analyze whether the application can scale horizontally.
-Evaluate:
-- Static/global state
-- Singleton services
-- Singleton mutable collections
-- In-memory coordination
-- In-memory queues
+Assume the application can run:
+DC1:
+  Instance 1
+  Instance 2
+  Instance 3
+  ...
+  Instance N
+DC2:
+  Instance 1
+  Instance 2
+  Instance 3
+  ...
+  Instance N
+Determine whether all instances can safely run simultaneously.
+Identify:
+- Static mutable state
+- Singleton mutable state
 - Local caches
-- Local file dependencies
-- Local locks
-- Local session state
+- Local queues
+- In-memory locks
+- Local file locks
+- Local scheduling
+- Local ownership
 - Instance-specific state
 - Sticky-session dependencies
-Identify anything that causes:
-Instance A != Instance B behavior.
-Determine whether the application can safely run:
-10 instances
-50 instances
-100 instances
-or more.
-Identify bottlenecks in:
-- CPU
-- Memory
-- Database
-- Network
-- Kafka/MQ
-- External APIs
-- File systems
-- Thread pool
+Determine whether:
+Instance A and Instance B
+can process the same:
+- Payment
+- File
+- Batch
+- Message
+- Reservation
+- Settlement
+at the same time.
+Identify all mechanisms preventing duplicate processing.
+============================================================
+3. MULTI-DATA-CENTER ARCHITECTURE
+============================================================
+Review active-active or active-passive behavior across DCs.
+Analyze:
+DC1 failure
+DC2 continues processing
+DC2 failure
+DC1 continues processing
+Both DCs operating simultaneously
+Evaluate:
+- Database topology
+- Database consistency
+- Message broker topology
+- File storage
+- S3
+- NFS
+- Distributed locking
+- Work ownership
+- File ownership
+- Batch ownership
+- Message ownership
+- Idempotency
+- Failover
+- Recovery
+- Reconciliation
+Identify assumptions that only one DC is active.
+Determine whether the application depends on:
+- Local hostname
+- Local filesystem
+- Local memory
+- Local cache
+- Local lock
+- Local scheduler
+- Local database
+- Local message broker
+============================================================
+4. KUBERNETES / OPENSHIFT
+============================================================
+Review:
+- Dockerfile
+- Container lifecycle
+- Deployment
+- StatefulSet where applicable
+- ConfigMap
+- Secret
+- Service
+- Ingress/Route
+- NetworkPolicy
+- HPA
+- PDB
+- Resource requests
+- Resource limits
+- Startup probe
+- Liveness probe
+- Readiness probe
+- Graceful termination
+- terminationGracePeriodSeconds
+- PodDisruptionBudget
+- Rolling deployments
+- Affinity/anti-affinity
+- Topology spread
+- Node failure
+- Pod eviction
+Determine whether the application behaves correctly during:
+- Pod startup
+- Pod restart
+- Pod termination
+- Rolling deployment
+- HPA scale-out
+- HPA scale-in
+- Node failure
+- Node drain
+- OOMKill
+- Network partition
+============================================================
+5. SCALABILITY
+============================================================
+Determine whether the application scales horizontally.
+Analyze:
+- CPU bottlenecks
+- Memory bottlenecks
+- Database bottlenecks
+- Network bottlenecks
+- Kafka/MQ bottlenecks
+- External API bottlenecks
+- File storage bottlenecks
+- ThreadPool
 - Connection pools
-Estimate scaling behavior:
+- Locks
+- Serial processing
+- Global synchronization
+Determine whether scaling from:
+1 instance
+→
+5 instances
+→
+20 instances
+→
+50 instances
+→
+100 instances
+provides useful throughput improvement.
+Classify scaling behavior:
 Linear
 Sub-linear
 Non-scalable
 Explain why.
 ============================================================
-3. THREADING REVIEW
+6. THREADING REVIEW
 ============================================================
 Deeply inspect:
 - async/await
@@ -136,11 +253,12 @@ Deeply inspect:
 - Monitor
 - Mutex
 - ReaderWriterLockSlim
-- Channels
+- Channel
 - ConcurrentDictionary
 - ConcurrentQueue
 - BlockingCollection
-- Timers
+- Timer
+- PeriodicTimer
 - BackgroundService
 - IHostedService
 Identify:
@@ -149,560 +267,526 @@ Identify:
 - .Wait()
 - GetAwaiter().GetResult()
 - Thread.Sleep()
-- Synchronous I/O
 - Sync-over-async
 - Async-over-sync
 - Thread starvation
+- ThreadPool starvation
 - Excessive thread creation
+- Unbounded Task creation
 - Unbounded parallelism
 - Incorrect cancellation
 - Thread-unsafe state
-Determine whether async operations are actually asynchronous.
-Flag:
-BAD:
-Task.Run(() => database/network I/O)
-BAD:
-var result = task.Result;
-BAD:
-Thread.Sleep()
-BAD:
-lock around async code
-Explain the correct implementation approach.
+Determine whether async operations are genuinely asynchronous.
 ============================================================
-4. CONCURRENCY REVIEW
+7. CONCURRENCY
 ============================================================
 Identify race conditions involving:
-- Database records
-- Account balances
-- Payment status
-- Reservation state
-- Inventory
+- Payment state
+- Account balance
+- Reservation
+- Settlement
+- File status
+- Batch status
 - Counters
 - Caches
 - Queues
-- File processing
+- Database records
 - Message processing
 Look for:
-Read → modify → write patterns.
+READ
+→
+MODIFY
+→
+WRITE
+patterns.
 Example:
-READ balance = 100
-READ balance = 100
-UPDATE balance = 80
-UPDATE balance = 50
-Determine whether concurrent requests can produce incorrect results.
-Evaluate:
+Worker A reads balance = 100
+Worker B reads balance = 100
+Worker A updates = 80
+Worker B updates = 50
+Determine whether the resulting state is correct.
+Review:
 - Optimistic concurrency
-- RowVersion/version columns
+- RowVersion/version
 - Database locking
-- Atomic SQL updates
-- Transaction isolation
-- Compare-and-swap patterns
+- Atomic SQL
+- Isolation levels
 - Distributed locks
-Identify TOCTOU vulnerabilities:
-Check
-↓
-Use
-where the underlying value can change between those operations.
+- Unique constraints
+- Idempotency
+Identify TOCTOU:
+CHECK
+→
+TIME GAP
+→
+USE
+vulnerabilities.
 ============================================================
-5. FINANCIAL / TRANSACTION CONSISTENCY
+8. FINANCIAL CONSISTENCY
 ============================================================
-If financial or payment processing exists, perform an especially strict review.
-Verify:
+Treat every:
+- Payment
+- Refund
+- Reservation
+- Earmark
+- Settlement
+- Account balance change
+as financially sensitive.
+For every operation answer:
+Can it execute twice?
+Can it execute zero times?
+Can it execute partially?
+Can it execute out of order?
+Can it be retried?
+Can two pods execute it simultaneously?
+Can two DCs execute it simultaneously?
+Can a message be duplicated?
+Can a response arrive late?
+Can a response arrive after timeout?
+Can a pod crash halfway through?
+Can recovery duplicate the operation?
+Review:
 - Atomicity
 - Consistency
-- Idempotency
 - Isolation
 - Durability
-Identify situations where:
-Database update succeeds
-BUT
-message publication fails.
-Or:
-Message is published
-BUT
-database transaction rolls back.
-Or:
-Request is retried
-AND
-financial operation happens twice.
-Look for the need for:
-- Transactional Outbox
-- Inbox pattern
-- Idempotency keys
-- Deduplication
-- Optimistic concurrency
-- State-machine validation
-Analyze every financial state transition.
-Ensure invalid transitions cannot occur.
-Example:
-AUTHORIZED → DRAFT
-should be rejected unless explicitly supported.
+- Idempotency
+- State-machine correctness
+- Reconciliation
 ============================================================
-6. DATABASE REVIEW
+9. DATABASE
 ============================================================
-Analyze:
-- EF Core usage
+Review:
+- EF Core
+- DbContext
 - DbContext lifetime
-- DbContext thread safety
-- Connection lifetime
 - Connection pooling
 - Transactions
-- Isolation levels
+- Isolation
+- Locking
+- Deadlocks
 - Query performance
-- N+1 queries
-- Cartesian joins
-- Missing indexes
-- Large scans
+- N+1
+- Cartesian products
+- Indexes
 - Pagination
 - Tracking
 - AsNoTracking
 - Bulk operations
 - Raw SQL
-- SQL injection
-- Stored procedures
-- Long-running transactions
-- Deadlocks
-- Lock escalation
-- Connection exhaustion
-Identify:
-- DbContext reused across threads
-- DbContext registered incorrectly
-- DbContext held too long
-- DB calls inside loops
-- Network calls inside DB transactions
-- Large transactions
-- Excessive SaveChanges()
-- Missing batching
-Estimate database behavior under high concurrency.
-============================================================
-7. ENTITY FRAMEWORK CORE REVIEW
-============================================================
-Specifically inspect:
-- DbContext lifetime
-- Tracking
-- ChangeTracker growth
-- Lazy loading
-- Include()
-- Split queries
-- Projection
-- Compiled queries
 - ExecuteUpdate
 - ExecuteDelete
-- Raw SQL
-- Transactions
-- Concurrency tokens
-Identify queries that become dangerous at scale.
-For every expensive query explain:
-Expected behavior for:
-1,000 rows
-100,000 rows
-1 million rows
-10 million rows
+- Stored procedures
+Identify:
+- DbContext shared between threads
+- DbContext held too long
+- DB calls inside loops
+- SaveChanges inside loops
+- Excessive tracking
+- Large entity graphs
+- Large transactions
+- Network calls inside DB transactions
+- Connection exhaustion
+- Lock contention
+- Long-running queries
+Estimate behavior at:
+1,000 records
+100,000 records
+1 million records
+10 million records
 ============================================================
-8. MEMORY REVIEW
+10. MEMORY LEAK & MEMORY MANAGEMENT
+============================================================
+Perform a dedicated memory analysis.
+Identify potential leaks caused by:
+- Static collections
+- Singleton services retaining request data
+- ConcurrentDictionary without eviction
+- ConcurrentQueue without bounds
+- Channel without bounds
+- Event subscriptions
+- Delegates
+- Closures
+- Timers
+- Long-running tasks
+- AsyncLocal
+- HttpContext references
+- Caches without expiration
+- Caches without size limits
+- Background workers
+- Logging scopes
+Distinguish:
+TRUE MEMORY LEAK
+from:
+HIGH ALLOCATION RATE
+from:
+TEMPORARY MEMORY PRESSURE
+from:
+EXPECTED MEMORY USAGE
+Do not call high memory usage a leak unless objects remain reachable
+beyond their intended lifetime.
+============================================================
+11. LARGE OBJECT HEAP
 ============================================================
 Look for:
-- Large object allocations
-- LOH pressure
-- Memory leaks
-- Static collections
-- Unbounded caches
-- Unbounded queues
-- Event subscriptions
-- Disposable objects not disposed
-- Streams not disposed
-- HttpResponseMessage leaks
-- HttpClient misuse
-- Byte[] copies
-- String concatenation
-- Large JSON serialization
-- Full-file loading
-Pay special attention to:
-BAD:
-File.ReadAllBytes()
-BAD:
-File.ReadAllText()
-BAD:
-JsonSerializer.Deserialize<List<T>>(entireLargePayload)
-Determine whether streaming is required.
+- byte[]
+- char[]
+- large string
+- large JSON
+- large List<T>
+- large DTO collections
+- MemoryStream
+- File.ReadAllBytes
+- File.ReadAllText
+Identify:
+- LOH allocations
+- GC pressure
+- Gen 2 pressure
+- excessive copying
+- memory fragmentation
+Recommend streaming or bounded processing where appropriate.
 ============================================================
-9. LARGE FILE PROCESSING
+12. LARGE FILE PROCESSING
 ============================================================
-If files are processed:
+If large files are processed, determine whether the application:
+- Streams files
+- Loads entire files
+- Buffers appropriately
+- Processes batches
+- Uses bounded concurrency
+- Retains processed records
+- Accumulates messages
+- Accumulates failed records
 Analyze:
-- Streaming
-- Buffered reads
-- Batch size
-- Parallel processing
-- Memory usage
-- File locking
-- Partial files
-- Duplicate files
-- Checksum validation
-- Retry behavior
-- Restart behavior
-- NFS behavior
-- S3 behavior
-Determine whether the design can process:
 100 MB
 500 MB
 1 GB
-5 GB+
-without excessive memory usage.
-Identify whether parallel processing can overwhelm:
-- Database
-- Kafka/MQ
-- CPU
-- Memory
-- Downstream systems
+5 GB
+10 GB
+Determine peak memory usage.
+Evaluate:
+- S3
+- NFS
+- FileStream
+- File locks
+- Partial files
+- Duplicate files
+- Checksum
+- Archive
+- Retry
+- Restart
+- Recovery
 ============================================================
-10. HTTP CLIENT / NETWORK REVIEW
+13. RESOURCE LIFECYCLE & CLEANUP
 ============================================================
-Analyze:
+Review all IDisposable/IAsyncDisposable resources.
+Verify correct lifecycle for:
+- DbContext
+- DbConnection
+- DbCommand
+- DbDataReader
+- DbTransaction
+- FileStream
+- Stream
+- MemoryStream
+- HttpRequestMessage
+- HttpResponseMessage
+- HttpContent
+- Kafka producer
+- Kafka consumer
+- MQ connection
+- Timer
+- PeriodicTimer
+- CancellationTokenSource
+- CancellationTokenRegistration
+- Temporary files
+Verify cleanup during:
+- Success
+- Exception
+- Cancellation
+- Timeout
+- Retry
+- Pod termination
+- Application shutdown
+Identify:
+- Resource leaks
+- File handle leaks
+- Socket leaks
+- Connection leaks
+- DB connection exhaustion
+- Kafka/MQ connection leaks
+- Timer leaks
+- Orphaned tasks
+============================================================
+14. HTTP CLIENT
+============================================================
+Review:
 - IHttpClientFactory
-- HttpClient lifetime
+- HttpClient lifecycle
 - Connection pooling
 - DNS refresh
-- Timeouts
+- Timeout
 - Cancellation
 - Retry
-- Retry storms
-- Circuit breakers
-- Bulkheads
-- Connection exhaustion
+- Circuit breaker
+- Bulkhead
+- Rate limiting
 Identify:
+- Socket exhaustion
 - Infinite timeout
 - Infinite retry
-- Retry on non-transient errors
-- Retry without idempotency
+- Retry storms
 - Retry amplification
-Evaluate resilience against:
-- Slow downstream
-- Connection timeout
-- HTTP 429
-- HTTP 500
-- HTTP 503
-- Partial response
-- Network partition
+- Retry of non-idempotent operations
 ============================================================
-11. KAFKA / MQ REVIEW
+15. BACKGROUND SERVICES
 ============================================================
-If messaging exists, inspect:
-- Producer configuration
-- Consumer configuration
+Review:
+- BackgroundService
+- IHostedService
+- Timers
+- Workers
+- Consumer loops
+- Batch processors
+Verify:
+- CancellationToken
+- Graceful shutdown
+- Scoped dependency creation
+- Exception handling
+- Retry
+- Backoff
+- Concurrency limits
+- Task ownership
+- Resource disposal
+Identify:
+- Infinite loops
+- Busy loops
+- Fire-and-forget work
+- Orphaned tasks
+- Unobserved exceptions
+- Scoped dependency captured by singleton
+============================================================
+16. BACKPRESSURE
+============================================================
+Analyze:
+Producer rate
+↓
+Queue
+↓
+Worker rate
+↓
+Database
+↓
+Downstream
+Determine what happens when:
+Producer rate > Consumer rate
+Identify:
+- Unbounded queues
+- Unbounded Channels
+- Unlimited Tasks
+- Unlimited parallelism
+- Unlimited retries
+- Memory amplification
+- Database overload
+- Kafka/MQ overload
+Recommend appropriate bounded concurrency and queue limits.
+============================================================
+17. KAFKA / MQ
+============================================================
+Review:
+- Producer
+- Consumer
 - Consumer groups
-- Partitioning
-- Message keys
+- Partitions
+- Keys
 - Ordering
-- Offset handling
+- Offsets
 - Acknowledgement
 - Retry
-- Dead-letter queues
+- DLQ
 - Poison messages
 - Duplicate messages
 - Idempotency
 - Backpressure
-- Consumer concurrency
-Determine whether multiple application instances can safely consume messages.
-Identify:
-- Duplicate processing
-- Lost messages
-- Message ordering violations
-- Commit-before-processing
-- Process-before-commit
-- Retry loops
-- Poison-message loops
-Analyze behavior when:
-Kafka is unavailable
-Consumer crashes
-Pod is killed
-Network is partitioned
-Database is unavailable
+Determine behavior during:
+- Broker unavailable
+- Consumer crash
+- Pod termination
+- Network failure
+- Database failure
+- Duplicate delivery
+- Delayed delivery
+- Out-of-order delivery
+Identify message-loss and duplicate-processing risks.
 ============================================================
-12. BACKGROUND SERVICE REVIEW
+18. OUTBOX / INBOX
 ============================================================
-Review every:
-BackgroundService
-IHostedService
-Timer
-Worker
-Consumer
-Check:
-- Scoped dependency usage
-- IServiceScopeFactory
-- CancellationToken
-- Graceful shutdown
-- Exception handling
-- Retry loops
-- Backoff
-- Concurrency limits
-- Resource disposal
-Identify:
-- Background service crash causing application-wide failure
-- Unbounded worker creation
-- Infinite loops
-- Busy loops
-- Missing cancellation
-- Scoped service captured by singleton
-- DbContext captured by singleton
-============================================================
-13. BACKPRESSURE
-============================================================
-Determine whether the application has effective backpressure.
+If events are used, determine whether the system requires:
+- Transactional Outbox
+- Inbox
+- Idempotency
+- Deduplication
 Analyze:
-Producer rate
-      ↓
-Queue
-      ↓
-Consumer rate
-      ↓
-Database
-      ↓
-Downstream
-Identify what happens when producer rate is greater than consumer capacity.
-Look for:
-- Unbounded Channel
-- Unbounded queue
-- Unlimited Task creation
-- Unlimited Parallel.ForEach
-- Unlimited Kafka consumers
-- Unlimited DB operations
-Recommend bounded concurrency where required.
+DATABASE COMMIT
+vs
+MESSAGE PUBLICATION
+Identify:
+DB commit succeeds + message fails
+Message succeeds + DB rollback
+Pod crash between DB and message
+Determine recovery behavior.
 ============================================================
-14. RESILIENCE
+19. SECURITY
 ============================================================
-Analyze behavior during:
-- Database outage
-- Kafka outage
-- MQ outage
-- Redis outage
-- S3 outage
-- NFS outage
-- External API outage
-- DNS outage
-- Certificate failure
-- Network partition
-- Pod restart
-- Node failure
-- DC failure
-Determine:
-What fails?
-What retries?
-What queues?
-What is lost?
-What is duplicated?
-What requires manual recovery?
-============================================================
-15. DISTRIBUTED SYSTEM REVIEW
-============================================================
-Identify assumptions such as:
-- Exactly-once processing
-- Exactly-once delivery
-- Distributed transactions
-- Clock synchronization
-- Immediate consistency
-- Local state consistency
-Challenge every "exactly once" claim.
-Determine whether the implementation actually provides:
-At-most-once
-At-least-once
-Effectively-once
-============================================================
-16. SECURITY REVIEW
-============================================================
-Perform a security review based on:
-OWASP Top 10
-OWASP API Security
-CWE
-.NET security best practices
+Perform OWASP, OWASP API Security, CWE, and .NET security review.
 Check:
-- Injection
 - SQL injection
 - Command injection
 - Path traversal
 - SSRF
 - XSS
 - CSRF
+- IDOR/BOLA
 - Authentication bypass
 - Authorization bypass
-- IDOR/BOLA
-- Broken access control
-- Deserialization vulnerabilities
-- File upload vulnerabilities
-- XML vulnerabilities
+- Deserialization
+- File upload
+- XML attacks
 - Regex DoS
 - Resource exhaustion
 - Secrets exposure
 - Sensitive information exposure
 ============================================================
-17. EXPLOITABILITY ANALYSIS
+20. EXPLOITABILITY
 ============================================================
 For every security finding determine:
-Can an attacker reach this code?
-If yes:
-1. Entry point
-2. Required privileges
-3. Attacker-controlled input
-4. Vulnerable operation
-5. Exploitation path
-6. Preconditions
-7. Impact
-8. Likelihood
-9. Detectability
-10. Recommended mitigation
+- Entry point
+- Attacker-controlled input
+- Required privilege
+- Vulnerable operation
+- Exploitation path
+- Preconditions
+- Impact
+- Likelihood
+- Detectability
+- Mitigation
 Classify:
 Not exploitable
-Theoretically exploitable
-Locally exploitable
-Authenticated exploitable
-Unauthenticated exploitable
-Internet-reachable exploitable
-Do not label something exploitable without identifying a credible attack path.
+Theoretical
+Authenticated
+Unauthenticated
+Internet reachable
+Internal-only
+Do not call something exploitable without a credible attack path.
 ============================================================
-18. INPUT VALIDATION
-============================================================
-Review all externally supplied data:
-- HTTP
-- JSON
-- XML
-- CSV
-- Files
-- Kafka
-- MQ
-- Headers
-- Query parameters
-- Path parameters
-Verify:
-- Size limits
-- Format validation
-- Range validation
-- Encoding
-- Schema validation
-- Business validation
-- Null handling
-Identify validation performed too late.
-============================================================
-19. AUTHENTICATION AND AUTHORIZATION
+21. AUTHENTICATION / AUTHORIZATION
 ============================================================
 Review:
-- Authentication
-- JWT validation
-- Token lifetime
+- JWT
 - Claims
 - Roles
 - Policies
 - Resource authorization
 - Tenant isolation
 - Service-to-service authentication
-Look for:
+- Token lifetime
+Identify:
 Authentication without authorization.
 ============================================================
-20. SECRET MANAGEMENT
+22. SECRET MANAGEMENT
 ============================================================
-Search for:
+Search:
+- Source code
+- appsettings
+- Dockerfile
+- Kubernetes YAML
+- ConfigMaps
+- Environment variables
+- Logs
+for:
 - Passwords
 - API keys
 - Tokens
 - Certificates
-- Connection strings
 - Encryption keys
-Check:
-- Source code
-- appsettings.json
-- environment variables
-- logs
-- Dockerfiles
-- Kubernetes manifests
-Recommend:
-- Secret manager
-- Kubernetes secrets with appropriate protection
-- Vault/cloud secret manager
+- Connection strings
+Recommend appropriate secret management.
 ============================================================
-21. DOS / RESOURCE EXHAUSTION
+23. DOS / RESOURCE EXHAUSTION
 ============================================================
-Identify whether an attacker or bad input can consume:
+Determine whether malicious or malformed input can exhaust:
 - CPU
 - Memory
-- Threads
+- ThreadPool
 - DB connections
 - HTTP connections
+- File handles
 - Disk
-- Queue capacity
-- Kafka partitions
-- File storage
-Look for:
+- Kafka/MQ
+- Network
+Review:
 - Large request bodies
 - Large files
 - Expensive regex
-- Unbounded recursion
 - Expensive queries
+- Recursion
 - Unlimited concurrency
 - Unlimited retries
 ============================================================
-22. CACHING
+24. CACHING
 ============================================================
 Review:
-- MemoryCache
+- IMemoryCache
 - Distributed cache
 - Redis
-- Cache expiration
-- Cache invalidation
+- Expiration
+- Eviction
+- Size limits
 - Cache stampede
-- Cache consistency
-- Sensitive data caching
-Determine whether cached data can become incorrect.
-For financial data, explicitly identify inappropriate caching.
+- Invalidation
+- Consistency
+Identify whether stale cache data can cause incorrect financial decisions.
 ============================================================
-23. API DESIGN
+25. API
 ============================================================
 Review:
 - REST semantics
-- HTTP status codes
 - Validation
 - Pagination
 - Rate limiting
 - Idempotency
-- Error responses
-- API versioning
-- Timeout
-- Request size limits
-- Response size
+- Error contract
+- Versioning
 - Backward compatibility
-Identify endpoints that can accidentally execute financial operations twice.
+- Request limits
+- Response limits
+Identify APIs that can accidentally execute a financial operation twice.
 ============================================================
-24. SERIALIZATION
-============================================================
-Review JSON/XML serialization for:
-- Excessive payloads
-- Circular references
-- Polymorphic deserialization
-- Unsafe type handling
-- Version compatibility
-- Null handling
-- Date/time handling
-- Decimal precision
-============================================================
-25. LOGGING
+26. SERIALIZATION
 ============================================================
 Review:
-- Structured logging
-- Log levels
-- Correlation IDs
+- JSON
+- XML
+- Polymorphic serialization
+- Deserialization
+- Payload size
+- Date/time
+- Decimal precision
+- Nullability
+- Schema compatibility
+============================================================
+27. LOGGING & OBSERVABILITY
+============================================================
+Verify:
+- Structured logs
+- Correlation ID
+- Business transaction ID
+- Message ID
+- Trace ID
+- Metrics
 - Distributed tracing
-- Sensitive data
-- Account numbers
-- Payment data
-- Tokens
-- Passwords
-- Exception information
-Identify logs that could violate security/privacy requirements.
-============================================================
-26. OBSERVABILITY
-============================================================
-Determine whether operators can answer:
-"What happened to transaction X?"
-within minutes.
-Verify traceability across:
+- Sensitive-data masking
+The system should allow support to trace:
 API
 ↓
 Database
@@ -711,139 +795,212 @@ Outbox
 ↓
 Kafka/MQ
 ↓
-Downstream system
+Downstream
 ↓
 Response
 ↓
 Database
-Recommend:
-- Correlation ID
-- Business transaction ID
-- Message ID
-- Trace ID
-- Metrics
+without exposing sensitive information.
 ============================================================
-27. CONTAINER / KUBERNETES REVIEW
+28. CONFIGURATION
 ============================================================
 Review:
-- Dockerfile
-- Base image
-- Non-root execution
-- Resource requests
-- Resource limits
-- CPU throttling
-- Memory limits
-- Liveness probes
-- Readiness probes
-- Startup probes
-- Graceful termination
-- Shutdown timeout
-- PodDisruptionBudget
-- Horizontal Pod Autoscaler
-- Secrets
-- ConfigMaps
-- Network policies
-Identify whether the application behaves correctly when:
-Pod is terminated
-Pod is rescheduled
-Pod is scaled
-Node disappears
-Deployment rolls out
-============================================================
-28. MULTI-DATA-CENTER REVIEW
-============================================================
-If multiple DCs exist, analyze:
-- Active-active behavior
-- Storage locality
-- Database topology
-- Message topology
-- Duplicate processing
-- File ownership
-- Work ownership
-- Failover
-- Recovery
-Determine whether:
-DC1 failure
-      ↓
-DC2 can continue
-without:
-- Duplicate payments
-- Duplicate reservations
-- Lost messages
-- Incorrect state
-============================================================
-29. CONFIGURATION REVIEW
-============================================================
-Identify:
-- Environment-specific code
 - Hard-coded configuration
-- Dangerous defaults
-- Missing validation
-- Configuration inconsistency
+- Environment-specific logic
 - Feature flags
-- Runtime changes
-Identify configurations that can accidentally create:
+- Defaults
+- Timeout configuration
+- Retry configuration
+- Concurrency configuration
+- Batch sizes
+- Connection pools
+- Memory limits
+Identify dangerous configurations such as:
 - Unlimited concurrency
 - Unlimited retries
-- Large memory usage
-- Unsafe security behavior
+- Unlimited queue size
+- Excessive batch size
+- Excessive connection pools
 ============================================================
-30. DEPENDENCY REVIEW
+29. DEPENDENCY SECURITY
 ============================================================
 Analyze:
 - NuGet packages
 - Versions
-- Known vulnerabilities
-- Deprecated packages
-- Unnecessary dependencies
 - Transitive dependencies
+- Deprecated packages
+- Known CVEs
+- Runtime reachability
 Prioritize vulnerabilities based on:
 Reachability
 Exploitability
 Runtime exposure
 Privilege
 Business impact
-Do not treat every CVE as equally critical.
 ============================================================
-31. TESTING REVIEW
+30. TESTABILITY
 ============================================================
-Evaluate:
-Unit tests
-Integration tests
-Contract tests
-Concurrency tests
-Performance tests
-Security tests
-Resilience tests
-End-to-end tests
+Review:
+- Unit tests
+- Integration tests
+- Contract tests
+- End-to-end tests
+- Performance tests
+- Security tests
+- Resilience tests
+- Concurrency tests
 Identify missing tests for:
 - Race conditions
 - Duplicate messages
-- Retry
-- Timeout
+- Retries
+- Timeouts
 - Failover
-- Database failure
-- Kafka failure
+- Database outage
+- Kafka outage
+- Pod termination
+- DC failure
 - Concurrent updates
 - Idempotency
+- Memory pressure
 ============================================================
-32. PERFORMANCE TESTABILITY
+31. FAILURE MODE ANALYSIS
 ============================================================
-Determine whether the application can be load tested realistically.
-Identify required metrics:
-- Requests/sec
-- Transactions/sec
-- P95 latency
-- P99 latency
-- DB latency
-- Queue lag
-- CPU
-- Memory
-- GC
-- Thread pool utilization
-- Connection pool utilization
+For every critical component determine what happens if it:
+- crashes
+- hangs
+- becomes slow
+- returns invalid data
+- becomes unavailable
+- becomes partially available
+- loses network connectivity
+- loses database connectivity
+Classify:
+Recoverable
+Retryable
+Non-retryable
+Requires reconciliation
+Requires manual intervention
 ============================================================
-33. MAINTAINABILITY
+32. GRACEFUL SHUTDOWN
+============================================================
+When Kubernetes sends SIGTERM, determine whether the application:
+1. Stops accepting new work
+2. Stops file intake
+3. Stops message consumption
+4. Completes safe in-flight work
+5. Cancels unsafe work
+6. Commits/rolls back DB transactions
+7. Flushes outbound messages where appropriate
+8. Closes Kafka/MQ clients
+9. Closes HTTP connections
+10. Disposes DB resources
+11. Stops timers
+12. Completes Channels
+13. Stops background workers
+14. Releases resources
+Identify work that can be:
+- Lost
+- Duplicated
+- Partially processed
+============================================================
+33. KUBERNETES SCALING
+============================================================
+Analyze:
+- HPA
+- CPU scaling
+- Memory scaling
+- Custom metrics
+- Queue-depth scaling
+- Kafka lag
+- Startup time
+- Shutdown time
+Determine whether scale-out can create:
+- Duplicate processing
+- Database overload
+- Kafka consumer rebalance storms
+- Downstream overload
+- Connection pool exhaustion
+============================================================
+34. MEMORY × CONCURRENCY ANALYSIS
+============================================================
+Analyze the combined effect of:
+Large file
++
+Large batch
++
+High concurrency
++
+Multiple pods
++
+Multiple DCs
+Determine memory amplification.
+For example:
+10 MB/request
+×
+100 concurrent operations
+×
+20 pods
+=
+potential 20 GB allocation pressure
+Identify:
+- Unbounded allocations
+- LOH
+- GC pressure
+- ThreadPool pressure
+- DB connection pressure
+- Queue growth
+- Retry amplification
+============================================================
+35. DATABASE × CONCURRENCY ANALYSIS
+============================================================
+Determine whether increasing application instances causes:
+- DB connection exhaustion
+- Lock contention
+- Deadlocks
+- Increased query latency
+- Transaction conflicts
+- Hot rows
+- Hot partitions
+Recommend appropriate:
+- Pool sizes
+- Batch sizes
+- Concurrency
+- Isolation levels
+- Indexes
+- Retry policies
+Do not provide arbitrary values without explaining assumptions.
+============================================================
+36. MULTI-DC FAILURE SCENARIOS
+============================================================
+Evaluate at minimum:
+SCENARIO 1
+DC1 application failure
+SCENARIO 2
+DC1 storage failure while containers remain healthy
+SCENARIO 3
+DC1 database connectivity failure
+SCENARIO 4
+DC1 Kafka connectivity failure
+SCENARIO 5
+DC1 complete outage
+SCENARIO 6
+DC2 complete outage
+SCENARIO 7
+Network partition between DCs
+SCENARIO 8
+Both DCs process simultaneously after recovery
+SCENARIO 9
+Pod crashes after DB commit but before message publication
+SCENARIO 10
+Pod crashes after message publication but before DB state update
+For each determine:
+- Lost work
+- Duplicate work
+- Recovery
+- Reconciliation
+- Required safeguards
+============================================================
+37. MAINTAINABILITY
 ============================================================
 Evaluate:
 - SOLID
@@ -851,794 +1008,42 @@ Evaluate:
 - Cohesion
 - Coupling
 - Complexity
-- Naming
-- Method size
-- Class size
 - Duplication
+- Naming
+- Class size
+- Method size
 - Abstraction quality
-Identify code where a small requirement change would require changes across many unrelated components.
+- Business-rule isolation
+Identify code that makes future changes expensive.
 ============================================================
-34. CHANGEABILITY
+38. CHANGEABILITY
 ============================================================
-Perform change-impact analysis for:
-1. Adding a new payment type
-2. Adding a new downstream system
-3. Changing database provider
-4. Changing Kafka/MQ
-5. Adding a new workflow state
-6. Changing a validation rule
-7. Adding a new response code
-8. Increasing transaction volume 10x
-9. Deploying to another DC
-10. Moving from NFS to S3
-For each scenario identify:
+Analyze these future changes:
+1. Add payment type
+2. Add refund type
+3. Add reservation state
+4. Add downstream system
+5. Change database provider
+6. Change Kafka/MQ
+7. Move NFS to S3
+8. Add another DC
+9. Increase volume 10x
+10. Add new validation rule
+11. Add new response code
+12. Change API contract
+For each:
 - Files affected
 - Classes affected
-- Interfaces affected
 - Database impact
 - API impact
 - Messaging impact
+- Infrastructure impact
 - Test impact
 - Regression risk
+- Change amplification
 ============================================================
-35. FAILURE MODE ANALYSIS
+39. RESOURCE OWNERSHIP MATRIX
 ============================================================
-For every critical component answer:
-What happens if it:
-- crashes?
-- hangs?
-- becomes slow?
-- returns invalid data?
-- returns duplicate data?
-- becomes unavailable?
-- becomes partially available?
-- loses network connectivity?
-- loses database connectivity?
-Classify failure as:
-Recoverable
-Retryable
-Non-retryable
-Requires reconciliation
-Requires manual intervention
-============================================================
-36. CRITICAL FINDINGS
-============================================================
-Prioritize findings using:
-P0 - Immediate production/security/financial risk
-P1 - Critical
-P2 - High
-P3 - Medium
-P4 - Low
-For security findings additionally provide:
-CWE where applicable
-OWASP category
-Exploitability
-Attack preconditions
-Impact
-============================================================
-37. OUTPUT FORMAT
-============================================================
-Produce the following report.
-------------------------------------------------------------
-A. EXECUTIVE SUMMARY
-------------------------------------------------------------
-Overall score /100
-Top 10 risks
-Top 5 scalability risks
-Top 5 concurrency risks
-Top 5 security risks
-Top 5 reliability risks
-------------------------------------------------------------
-B. SCORECARD
-------------------------------------------------------------
-Architecture
-Scalability
-Threading
-Concurrency
-Consistency
-Database
-Messaging
-Security
-Exploitability
-Performance
-Reliability
-Resilience
-Observability
-Testability
-Maintainability
-Changeability
-Container readiness
-Score each /10.
-------------------------------------------------------------
-C. CRITICAL FINDINGS
-------------------------------------------------------------
-For each:
-ID
-Severity
-Category
-File
-Class
-Method
-Line
-Problem
-Failure scenario
-Exploit scenario if applicable
-Business impact
-Technical impact
-Likelihood
-Recommended fix
-Implementation complexity
-Regression risk
-Priority
-------------------------------------------------------------
-D. CONCURRENCY HOTSPOTS
-------------------------------------------------------------
-List every significant concurrency risk.
-For each:
-Shared resource
-Competing operations
-Race condition
-Current protection
-Why protection is insufficient
-Recommended solution
-------------------------------------------------------------
-E. SCALABILITY BOTTLENECKS
-------------------------------------------------------------
-Identify the top 20 bottlenecks.
-For each:
-Component
-Resource
-Current behavior
-Expected scaling behavior
-Breaking point
-Recommendation
-------------------------------------------------------------
-F. SECURITY ATTACK SURFACE
-------------------------------------------------------------
-Create:
-Entry Point
-   ↓
-Input
-   ↓
-Processing
-   ↓
-Sensitive Operation
-   ↓
-Potential Impact
-Identify exploitable attack paths.
-------------------------------------------------------------
-G. DATABASE HOTSPOTS
-------------------------------------------------------------
-List:
-Slow/expensive queries
-N+1 queries
-Large transactions
-Lock risks
-Connection risks
-Index problems
-Concurrency problems
-------------------------------------------------------------
-H. MESSAGE PROCESSING RISKS
-------------------------------------------------------------
-Identify:
-Lost message risks
-Duplicate processing
-Ordering problems
-Retry problems
-Poison messages
-DLQ problems
-Consumer scaling problems
-------------------------------------------------------------
-I. MEMORY / THREADING RISKS
-------------------------------------------------------------
-Identify:
-Memory leaks
-LOH risks
-Thread starvation
-Blocking calls
-Unbounded tasks
-Unbounded queues
-Improper cancellation
-------------------------------------------------------------
-J. CHANGEABILITY
-------------------------------------------------------------
-Identify components with high change amplification.
-------------------------------------------------------------
-K. QUICK WINS
-------------------------------------------------------------
-List fixes that can be completed in:
-< 1 day
-1–3 days
-1–2 weeks
-Architectural change
-------------------------------------------------------------
-L. RECOMMENDED ROADMAP
-------------------------------------------------------------
-Phase 1:
-Critical security and correctness
-Phase 2:
-Concurrency and reliability
-Phase 3:
-Scalability and performance
-Phase 4:
-Maintainability
-Phase 5:
-Architectural modernization
-------------------------------------------------------------
-M. DO NOT REFACTOR
-------------------------------------------------------------
-Identify code that appears complex but whose complexity is justified
-by genuine business requirements.
-Avoid recommending unnecessary abstractions or rewrites.
-------------------------------------------------------------
-N. FINAL ASSESSMENT
-------------------------------------------------------------
-Answer explicitly:
-1. Can this application safely run multiple instances?
-2. Can it scale horizontally?
-3. Can it safely process concurrent requests?
-4. Can it survive duplicate messages?
-5. Can it survive retries?
-6. Can it survive database failure?
-7. Can it survive Kafka/MQ failure?
-8. Can it survive pod termination?
-9. Can it survive DC failure?
-10. Can it safely process financial transactions?
-11. What are the three biggest risks?
-12. What should be fixed before production?
-
-Particularly important for your ACH application
-
-I would add this financial-processing-specific review block to the prompt:
-
-FINANCIAL CORRECTNESS REVIEW
-Treat every payment, reservation, earmark, refund, settlement,
-and balance-changing operation as financially sensitive.
-For every operation determine:
-- Can it execute twice?
-- Can it execute zero times?
-- Can it execute partially?
-- Can it execute out of order?
-- Can a retry execute it twice?
-- Can two pods execute it simultaneously?
-- Can two DCs execute it simultaneously?
-- Can a message be duplicated?
-- Can a response arrive late?
-- Can a response arrive after timeout?
-- Can a database commit succeed while message publication fails?
-- Can message publication succeed while database commit fails?
-- Can a pod crash between those operations?
-- Can recovery cause duplicate financial activity?
-For each scenario determine the required protection:
-- Idempotency
-- Unique constraint
-- Optimistic concurrency
-- Database transaction
-- Transactional Outbox
-- Inbox/deduplication
-- State-machine validation
-- Retry policy
-- Reconciliation
-Explicitly identify any code where financial correctness currently depends
-on timing, thread scheduling, pod uniqueness, or "the message should only
-arrive once."
-
-One improvement I strongly recommend
-
-For your internal AI code-review platform, don’t make the agent produce only a “bug list.” Have it produce three separate dimensions:
-
-1. Code Quality — Is the code well designed?
-
-2. Runtime Risk — What can actually fail under load/concurrency/failure?
-
-3. Change Risk — What will break or become expensive when requirements change?
-
-That distinction is especially valuable for your .NET payment architecture because a class can be perfectly clean from a code-quality perspective while still having a serious distributed concurrency or financial-consistency flaw.
-
-
-=======
-
-Absolutely. For an enterprise .NET Core review, memory/resource lifecycle needs its own deep review category, especially for your file processing, Kafka/MQ, EF Core, background workers, HTTP clients, streams, and container workloads.
-
-Add the following section to the previous prompt.
-
-============================================================
-MEMORY LEAK, RESOURCE LIFECYCLE & CLEANUP REVIEW
-============================================================
-Perform a deep analysis of memory management and resource lifecycle.
-Do not limit the review to obvious IDisposable violations.
-Determine whether resources are:
-ALLOCATED → USED → RELEASED
-correctly under:
-- Normal execution
-- Exceptions
-- Cancellation
-- Timeout
-- Retry
-- Application shutdown
-- Pod termination
-- Network failure
-- Database failure
-- Messaging failure
-------------------------------------------------------------
-1. MANAGED MEMORY
-------------------------------------------------------------
-Identify potential managed-memory leaks caused by:
-- Static collections
-- Singleton services holding request data
-- Long-lived object references
-- Unbounded ConcurrentDictionary
-- Unbounded ConcurrentQueue
-- Unbounded Channel
-- Event subscriptions
-- Delegates
-- Closures
-- Caches without expiration
-- Caches without size limits
-- Background workers retaining objects
-- Task continuations retaining large objects
-- Async state machines
-- Long-running tasks
-- Timers retaining service instances
-Identify objects whose lifetime is unexpectedly longer than intended.
-For each finding explain:
-Object
-Owner
-Expected lifetime
-Actual lifetime
-Why it remains referenced
-Potential memory growth
-Recommended fix
-------------------------------------------------------------
-2. LARGE OBJECT HEAP (LOH)
-------------------------------------------------------------
-Identify allocations likely to enter the Large Object Heap.
-Pay special attention to:
-- byte[]
-- char[]
-- string
-- large JSON payloads
-- large collections
-- serialized objects
-- file contents
-- HTTP response bodies
-Flag patterns such as:
-File.ReadAllBytes()
-File.ReadAllText()
-MemoryStream containing entire files
-Large byte arrays
-Large List<T>
-Large JSON strings
-Determine whether streaming should be used.
-------------------------------------------------------------
-3. LARGE FILE PROCESSING
-------------------------------------------------------------
-For every file-processing path determine:
-Does the application load the entire file into memory?
-Does it load the entire batch into memory?
-Does it retain processed records?
-Does it accumulate records before database insertion?
-Does it accumulate messages before publishing?
-Does it retain failed records indefinitely?
-Determine peak memory usage for:
-100 MB file
-500 MB file
-1 GB file
-5 GB file
-10 GB file
-Recommend:
-Streaming
-Buffered streaming
-IAsyncEnumerable
-Bounded Channel
-Batch processing
-Object pooling where justified
-------------------------------------------------------------
-4. STREAM LIFECYCLE
-------------------------------------------------------------
-Review all:
-Stream
-FileStream
-MemoryStream
-BufferedStream
-GZipStream
-CryptoStream
-NetworkStream
-Verify:
-- Correct disposal
-- Async disposal where appropriate
-- LeaveOpen behavior
-- Ownership clarity
-- Exception-safe cleanup
-- Cancellation behavior
-Identify streams that can remain open after exceptions.
-------------------------------------------------------------
-5. IASYNCDisposable / IAsyncDisposable
-------------------------------------------------------------
-Review resources implementing:
-IDisposable
-IAsyncDisposable
-Verify correct lifecycle handling.
-Check:
-await using
-using
-try/finally
-where appropriate.
-Identify resources disposed too early as well as resources never disposed.
-------------------------------------------------------------
-6. DATABASE RESOURCE CLEANUP
-------------------------------------------------------------
-Review:
-DbContext
-DbConnection
-DbCommand
-DbDataReader
-DbTransaction
-Verify:
-- Correct DbContext lifetime
-- No DbContext captured by long-lived services
-- Connections returned to pool
-- Readers disposed
-- Commands disposed
-- Transactions disposed
-- Transactions rolled back on failure
-- No connection held while waiting for network operations
-Identify:
-DB connection leaks
-Connection pool exhaustion
-Long-held connections
-Long-running transactions
-------------------------------------------------------------
-7. ENTITY FRAMEWORK CORE MEMORY
-------------------------------------------------------------
-Review ChangeTracker behavior.
-Identify:
-- Large tracked entity graphs
-- Long-lived DbContext
-- Loading millions of entities
-- Missing AsNoTracking
-- Large Include graphs
-- Accumulating tracked entities
-- DbContext reused across batches
-For batch processing determine whether ChangeTracker should be cleared
-between batches.
-Evaluate:
-100
-1,000
-10,000
-100,000 entity batches.
-------------------------------------------------------------
-8. HTTP RESOURCE MANAGEMENT
-------------------------------------------------------------
-Review:
-HttpClient
-HttpRequestMessage
-HttpResponseMessage
-HttpContent
-StreamContent
-Verify:
-- IHttpClientFactory usage
-- Response disposal
-- Content disposal
-- Request disposal
-- Connection reuse
-- Cancellation
-Identify:
-- Socket exhaustion
-- Connection exhaustion
-- Response body leaks
-- Large response buffering
-Pay particular attention to:
-var response = await client.SendAsync(...);
-without proper response/content lifecycle management.
-------------------------------------------------------------
-9. KAFKA / MQ RESOURCE MANAGEMENT
-------------------------------------------------------------
-Review producers, consumers, channels, clients and connections.
-Verify:
-- Producer disposal
-- Consumer disposal
-- Connection cleanup
-- Consumer shutdown
-- Producer flush behavior
-- Pending message handling
-- Cancellation
-- Reconnection behavior
-Identify:
-- Consumer leaks
-- Producer leaks
-- Repeated client creation
-- Connections created per message
-- Connections never disposed
-- Background consumers surviving shutdown
-------------------------------------------------------------
-10. BACKGROUND WORKER LIFECYCLE
-------------------------------------------------------------
-Review:
-BackgroundService
-IHostedService
-Timers
-Tasks
-Channels
-Workers
-Determine whether:
-- Workers terminate correctly
-- CancellationToken is honored
-- Tasks are awaited
-- Child tasks are tracked
-- Exceptions are observed
-- Timers are disposed
-- Channels are completed
-- Consumers are stopped
-Identify orphaned background tasks.
-------------------------------------------------------------
-11. TASK / ASYNC LIFETIME
-------------------------------------------------------------
-Look for:
-- Fire-and-forget Task
-- async void
-- UnobservedTaskException
-- Detached tasks
-- Task.Run without ownership
-- Tasks retaining large objects
-- Tasks that never complete
-- CancellationToken ignored
-For every fire-and-forget operation determine:
-Who owns the task?
-Who observes exceptions?
-Who cancels it?
-Who waits for completion?
-What happens during application shutdown?
-------------------------------------------------------------
-12. TIMER CLEANUP
-------------------------------------------------------------
-Review:
-Timer
-System.Threading.Timer
-PeriodicTimer
-CancellationTokenSource timers
-Check:
-- Disposal
-- Cancellation
-- Callback overlap
-- Callback lifetime
-- Service lifetime
-Identify timers whose callbacks can continue after the owning service
-should have stopped.
-------------------------------------------------------------
-13. CANCELLATION TOKEN SOURCE
-------------------------------------------------------------
-Review:
-CancellationTokenSource
-Identify:
-- CTS never disposed
-- Linked CTS never disposed
-- Cancellation registrations never released
-- Timers associated with CTS
-- Long-lived cancellation registrations
-Verify cancellation propagates through:
-API
-↓
-Service
-↓
-Database
-↓
-HTTP
-↓
-Kafka/MQ
-↓
-Background processing
-------------------------------------------------------------
-14. EVENT HANDLERS
-------------------------------------------------------------
-Identify potential memory leaks caused by:
-event +=
-without corresponding:
-event -=
-Especially when:
-Long-lived object subscribes to short-lived object
-or
-short-lived object subscribes to long-lived object.
-Review:
-- .NET events
-- Delegates
-- Messaging callbacks
-- Reactive subscriptions
-- Observer patterns
-------------------------------------------------------------
-15. CACHE LIFECYCLE
-------------------------------------------------------------
-Review all caches.
-For each cache determine:
-- Maximum size
-- Expiration
-- Sliding expiration
-- Eviction
-- Memory limits
-- Invalidation
-- Key cardinality
-Identify unbounded caches.
-For distributed cache verify:
-- Serialization size
-- TTL
-- Key cleanup
-- Stampede protection
-For financial/payment data determine whether stale cache data could
-cause incorrect business decisions.
-------------------------------------------------------------
-16. MEMORY PRESSURE UNDER CONCURRENCY
-------------------------------------------------------------
-Analyze memory amplification.
-Example:
-One request uses 10 MB.
-100 concurrent requests:
-10 MB × 100 = 1 GB
-Determine whether concurrent:
-- File processing
-- JSON parsing
-- Database queries
-- Message processing
-- HTTP calls
-can cause unacceptable memory amplification.
-Identify unbounded concurrency combined with large memory allocations.
-------------------------------------------------------------
-17. OBJECT RETENTION
-------------------------------------------------------------
-Identify objects retained because of:
-- Closures
-- Static variables
-- Singleton services
-- Cache
-- Task continuations
-- Event handlers
-- Logging scopes
-- AsyncLocal
-- HttpContext references
-- IServiceProvider references
-Pay special attention to retaining:
-- HttpContext
-- Request objects
-- Large DTOs
-- File buffers
-- Payment data
-- Database entities
-beyond the request lifetime.
-------------------------------------------------------------
-18. LOGGING MEMORY
-------------------------------------------------------------
-Review logging for:
-- Large payload logging
-- Full request/response logging
-- Large exceptions
-- Serialized objects
-- Buffered logging
-- In-memory logging providers
-Identify cases where logging itself can create memory pressure.
-------------------------------------------------------------
-19. RETRY MEMORY
-------------------------------------------------------------
-Analyze retry implementations.
-Identify whether failed operations retain:
-- Request payload
-- File contents
-- Database entities
-- HTTP responses
-- Message objects
-across retries.
-Determine whether retry queues are bounded.
-------------------------------------------------------------
-20. EXCEPTION MEMORY
-------------------------------------------------------------
-Review exception handling for:
-- Large exception objects
-- Retained stack traces
-- Exceptions stored indefinitely
-- Exceptions accumulated in collections
-- Failed records retained indefinitely
-Identify unbounded error collections.
-------------------------------------------------------------
-21. RESOURCE EXHAUSTION
-------------------------------------------------------------
-Analyze exhaustion of:
-- Memory
-- Threads
-- ThreadPool
-- File handles
-- DB connections
-- HTTP connections
-- Kafka connections
-- MQ connections
-- Sockets
-- Disk
-- Temporary files
-- File descriptors
-Determine whether resource exhaustion can cause:
-Application degradation
-→
-Request failures
-→
-Retry storm
-→
-Further resource exhaustion
-→
-Application crash
-------------------------------------------------------------
-22. TEMPORARY FILE CLEANUP
-------------------------------------------------------------
-Review all temporary files.
-Verify:
-- Unique naming
-- Correct directory
-- Cleanup after success
-- Cleanup after failure
-- Cleanup after cancellation
-- Cleanup after process crash
-- Disk-space monitoring
-Identify orphaned temporary files.
-------------------------------------------------------------
-23. APPLICATION SHUTDOWN
-------------------------------------------------------------
-Analyze graceful shutdown.
-When Kubernetes sends SIGTERM:
-Determine whether the application:
-1. Stops accepting new work
-2. Stops file intake
-3. Stops message consumption
-4. Finishes or safely abandons active work
-5. Completes pending database transactions
-6. Flushes outbound messages
-7. Closes Kafka/MQ clients
-8. Closes HTTP connections
-9. Disposes DB resources
-10. Disposes timers
-11. Completes Channels
-12. Terminates background workers
-13. Releases resources
-Identify work that can be lost or duplicated during shutdown.
-------------------------------------------------------------
-24. KUBERNETES RESOURCE BEHAVIOR
-------------------------------------------------------------
-Evaluate behavior under:
-- Memory limit reached
-- CPU throttling
-- OOMKill
-- Pod eviction
-- Rolling deployment
-- Node failure
-- HPA scaling
-- Pod termination
-Determine whether resource cleanup occurs before termination.
-Identify whether:
-OOMKill
-→
-work replay
-→
-duplicate processing
-is possible.
-------------------------------------------------------------
-25. MEMORY LEAK RISK RATING
-------------------------------------------------------------
-For every memory/resource issue classify:
-CRITICAL
-HIGH
-MEDIUM
-LOW
-Estimate:
-Memory growth rate
-Trigger condition
-Expected production impact
-Recovery behavior
-Distinguish:
-True memory leak
-High allocation rate
-Temporary memory pressure
-Expected memory usage
-Unbounded resource growth
-Do not call high memory usage a "memory leak" unless objects remain
-reachable beyond their intended lifetime.
-------------------------------------------------------------
-26. RESOURCE OWNERSHIP MATRIX
-------------------------------------------------------------
 Create a table:
 Resource
 Created By
@@ -1665,90 +1070,229 @@ Channel
 File Handle
 Temporary File
 Cache Entry
-------------------------------------------------------------
-27. FINAL MEMORY / RESOURCE REPORT
-------------------------------------------------------------
-Produce:
-Top 20 memory risks
-Top 20 resource-cleanup risks
-Top 10 concurrency × memory risks
-Top 10 resource-exhaustion risks
-Top 10 shutdown/recovery risks
-For each:
+============================================================
+40. CRITICAL FINDINGS
+============================================================
+Classify:
+P0 = Immediate production/security/financial risk
+P1 = Critical
+P2 = High
+P3 = Medium
+P4 = Low
+For security findings include:
+- CWE
+- OWASP category
+- Exploitability
+- Attack preconditions
+- Impact
+============================================================
+41. REQUIRED OUTPUT
+============================================================
+Produce the following report.
+A. EXECUTIVE SUMMARY
+Overall Score /100
+Top 10 production risks
+Top 10 scalability risks
+Top 10 concurrency risks
+Top 10 security risks
+Top 10 reliability risks
+Top 10 memory/resource risks
+B. ENGINEERING SCORECARD
+Architecture /10
+Scalability /10
+Threading /10
+Concurrency /10
+Consistency /10
+Database /10
+Messaging /10
+Security /10
+Exploitability /10
+Performance /10
+Memory Safety /10
+Resource Management /10
+Resilience /10
+Multi-Instance Readiness /10
+Multi-DC Readiness /10
+Kubernetes Readiness /10
+Observability /10
+Testability /10
+Maintainability /10
+Changeability /10
+C. CRITICAL FINDINGS
+For every finding:
 ID
 Severity
+Category
 File
 Class
 Method
-Resource
+Line
 Problem
-Lifecycle
 Failure scenario
-Production impact
+Exploit scenario if applicable
+Business impact
+Technical impact
+Likelihood
 Recommended fix
 Implementation complexity
+Regression risk
 Priority
-Finally answer:
-1. Can memory grow without bound?
-2. Can a single large file exhaust memory?
-3. Can concurrent processing exhaust memory?
-4. Can DB connections be exhausted?
-5. Can sockets be exhausted?
-6. Can file handles be exhausted?
-7. Can background tasks survive shutdown?
-8. Can Kafka/MQ connections leak?
-9. Can temporary files accumulate?
-10. Can retries cause memory amplification?
-11. Can OOMKill cause duplicate financial processing?
-12. Can the application safely restart during active processing?
+D. CONCURRENCY HOTSPOTS
+Shared resource
+Competing operations
+Race condition
+Current protection
+Why insufficient
+Recommended solution
+E. MEMORY / RESOURCE RISKS
+Resource
+Allocation
+Expected lifetime
+Actual lifetime
+Leak/pressure
+Trigger
+Impact
+Recommended fix
+F. SCALABILITY BOTTLENECKS
+Component
+Resource
+Current behavior
+Scaling behavior
+Breaking point
+Recommendation
+G. SECURITY ATTACK SURFACE
+Entry Point
+↓
+Input
+↓
+Processing
+↓
+Sensitive Operation
+↓
+Potential Impact
+Identify credible attack paths.
+H. DATABASE HOTSPOTS
+List:
+Slow queries
+N+1
+Large transactions
+Locks
+Deadlocks
+Connection risks
+Index problems
+Concurrency risks
+I. MESSAGE PROCESSING RISKS
+List:
+Lost messages
+Duplicate processing
+Ordering issues
+Retry issues
+Poison messages
+DLQ issues
+Consumer scaling problems
+J. KUBERNETES RISKS
+List:
+Pod restart risks
+OOMKill risks
+Scale-out risks
+Scale-in risks
+Node failure risks
+Probe risks
+Shutdown risks
+Resource-limit risks
+K. MULTI-DC RISKS
+List:
+DC failover risks
+Storage failure
+Database failure
+Kafka failure
+Network partition
+Duplicate processing
+Split-brain risks
+Recovery risks
+L. QUICK WINS
+< 1 day
+1–3 days
+1–2 weeks
+Architectural change
+M. RECOMMENDED ROADMAP
+Phase 1:
+Security + financial correctness
+Phase 2:
+Concurrency + resource safety
+Phase 3:
+Resilience + multi-instance
+Phase 4:
+Scalability + performance
+Phase 5:
+Maintainability + architecture
+N. DO NOT REFACTOR
+Identify code that is complex but intentionally complex because of
+legitimate business or technical requirements.
+Do not recommend unnecessary abstractions, rewrites, or microservices.
+O. FINAL PRODUCTION READINESS ASSESSMENT
+Explicitly answer:
+1. Can the application safely run multiple instances?
+2. Can multiple instances process the same business entity safely?
+3. Can it safely run across multiple DCs?
+4. Can it survive DC failure?
+5. Can it survive storage failure?
+6. Can it survive database failure?
+7. Can it survive Kafka/MQ failure?
+8. Can it survive pod termination?
+9. Can it survive duplicate messages?
+10. Can it survive retries?
+11. Can it prevent financial duplication?
+12. Can it prevent race conditions?
+13. Can it handle large files?
+14. Can it handle high concurrency?
+15. Can it prevent memory leaks?
+16. Can it prevent resource exhaustion?
+17. Can it recover abandoned work?
+18. Can it maintain transaction consistency?
+19. Can it scale horizontally?
+20. What must be fixed before production?
+IMPORTANT REVIEW RULES
+- Do not claim a vulnerability without evidence from the code.
+- Do not claim a memory leak unless object retention/lifecycle supports it.
+- Distinguish theoretical risk from exploitable vulnerability.
+- Distinguish performance issue from scalability issue.
+- Distinguish high allocation from memory leak.
+- Distinguish duplicate delivery from duplicate business processing.
+- Do not assume Kafka provides exactly-once business processing.
+- Do not assume Kubernetes restart automatically makes processing safe.
+- Do not assume multiple DCs are safe simply because the application is stateless.
+- Do not recommend distributed locks without explaining why they are required.
+- Prefer database constraints and idempotency where appropriate.
+- Never recommend disabling security controls merely to resolve a performance issue.
+- For financial operations, always evaluate idempotency, concurrency,
+  transaction boundaries, retry behavior, and reconciliation.
+- Provide evidence from the actual source code for each significant finding.
+- Prioritize issues by actual production/business impact rather than number
+  of static-analysis violations.
 
-For your particular ACH application, add this final test
+Recommended review output hierarchy
 
-PERFORM MEMORY + CONCURRENCY STRESS ANALYSIS
-Analyze this combined scenario:
-A large ACH file arrives.
-The file contains millions of records.
-The application processes records in parallel batches.
-Each batch:
-- reads records
-- validates records
-- creates database entities
-- writes to database
-- creates Outbox events
-- publishes Kafka/MQ messages
-At the same time:
-- multiple pods are running
-- multiple DCs are active
-- downstream responses are arriving
-- retries are occurring
-- some messages are delayed
-- some messages are duplicated
-- some workers terminate
-Determine:
-1. Maximum theoretical memory amplification.
-2. Unbounded allocations.
-3. ThreadPool pressure.
-4. Database connection pressure.
-5. Kafka/MQ connection pressure.
-6. File handle pressure.
-7. Queue growth.
-8. GC pressure.
-9. LOH pressure.
-10. Backpressure failures.
-11. Duplicate processing risks.
-12. Resource cleanup gaps.
-13. Shutdown/restart risks.
-Recommend concrete bounded values for:
-- File read buffer
-- Batch size
-- Worker concurrency
-- Channel capacity
-- DB batch size
-- DB connection pool
-- HTTP connection pool
-- Kafka consumer concurrency
-- Retry queue
-- Maximum in-flight transactions
-Do not provide arbitrary numbers without explaining the workload assumptions.
+For your .NET ACH / payment platform, I would have the AI produce findings in this priority order:
 
-One key principle for your code-review agent: distinguish memory leak from high memory usage. For example, processing a 1-GB file with a 1-GB buffer is a serious scalability/resource problem, but it isn’t technically a memory leak if the buffer is released. Conversely, a singleton retaining processed payment objects indefinitely is a true leak even if memory usage starts small. This distinction will make your AI review much more accurate.
+P0 — Financial correctness / exploitable security
+
+Could duplicate, lose, corrupt, or unauthorizedly alter a financial transaction.
+
+P1 — Production correctness
+
+Race conditions, inconsistent state, deadlocks, lost messages, unsafe recovery.
+
+P2 — Resilience
+
+Multi-instance, multi-DC, Kafka/MQ, database, storage, Kubernetes failure behavior.
+
+P3 — Scalability/resource
+
+Memory, CPU, ThreadPool, DB connections, sockets, file handles, queue growth.
+
+P4 — Maintainability/changeability
+
+Complexity, coupling, duplication, technical debt, architectural improvements.
+
+This ordering prevents an AI reviewer from producing a report dominated by minor code-quality issues while missing something much more important such as two Kubernetes pods concurrently reserving the same funds, an Outbox race, a DbContext shared across threads, an unbounded file-processing queue, or a retry that can execute a financial transaction twice.
