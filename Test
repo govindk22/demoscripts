@@ -1,0 +1,407 @@
+#
+
+Scenario Name
+
+Test Steps
+
+Expected Outcome
+
+1
+
+DC1 Normal Prefund Processing
+
+Place prefund file in DC1 storage → DC1 pod detects file → process → send reservation MQ message
+
+File processed successfully; reservation response updated; no duplicate processing
+
+2
+
+DC2 Normal Prefund Processing
+
+Place prefund file in DC2 storage → DC2 pod processes file
+
+File processed successfully
+
+3
+
+Multiple Pods Same File
+
+Place one file where multiple pods can detect it → start processing simultaneously
+
+Only one pod acquires ownership; other pods skip/wait; no duplicate transaction
+
+4
+
+Multiple Pods Multiple Files
+
+Place multiple prefund files → allow multiple pods to process
+
+Files can process concurrently without duplicate ownership
+
+5
+
+Settlement Multiple Time Slots
+
+Deliver settlement files at different scheduled times
+
+Each file is independently registered, processed, correlated and completed
+
+6
+
+Settlement During Prefund Processing
+
+Start prefund processing → before completion deliver settlement file
+
+Settlement waits/retries until matching prefund transaction is available; no permanent failure
+
+7
+
+Settlement After Prefund Completion
+
+Complete prefund → deliver settlement file
+
+Settlement matches prefund and updates settlement status successfully
+
+8
+
+Duplicate Prefund File
+
+Submit the same prefund file twice
+
+Second file identified as duplicate; no duplicate reservation
+
+9
+
+Duplicate Settlement File
+
+Submit same settlement file twice
+
+Duplicate detected; no duplicate settlement effect
+
+10
+
+Duplicate Transaction
+
+Include same transaction twice in a file
+
+Duplicate transaction detected according to business rules; no duplicate financial action
+
+11
+
+DC1 Storage Failure
+
+Start processing in DC1 → make DC1 storage unavailable
+
+DC1 workers stop/skip storage work gracefully; no busy retry loop; processing state remains recoverable
+
+12
+
+DC2 Storage Failure
+
+Make DC2 storage unavailable → submit work to DC1
+
+DC1 continues processing independently
+
+13
+
+DC1 Storage Down, DC1 App Up
+
+Keep OpenShift/application healthy → disconnect storage
+
+Application remains healthy; storage condition is observable; no false file completion
+
+14
+
+DC1 Complete Failure
+
+Process file in DC1 → terminate all DC1 pods
+
+DC2 takes over eligible/recoverable work without duplicate financial processing
+
+15
+
+DC2 Complete Failure
+
+Process file in DC2 → terminate DC2 pods
+
+DC1 continues processing available/recoverable work
+
+16
+
+Pod Failure Before DB Commit
+
+Kill pod during file/batch processing before DB commit
+
+Batch/file remains recoverable; another worker can safely process it
+
+17
+
+Pod Failure After DB Commit
+
+Kill pod immediately after DB commit
+
+Recovery recognizes committed work and does not duplicate processing
+
+18
+
+Pod Failure After MQ Publish
+
+Publish reservation message → kill pod before status update
+
+Recovery does not blindly publish duplicate financial request; idempotency/outbox protects processing
+
+19
+
+MQ Unavailable
+
+Start prefund processing → make MQ unavailable
+
+DB state remains consistent; message is retained/retryable; no transaction falsely marked successful
+
+20
+
+MQ Recovery
+
+Keep MQ unavailable → restore MQ
+
+Pending messages are eventually published/processed; no duplicate financial effect
+
+21
+
+Internal Response Delayed
+
+Send reservation request → delay internal response
+
+Transaction remains pending; timeout/retry behavior follows configured policy
+
+22
+
+Internal Response Missing
+
+Send reservation request → never return response
+
+Transaction becomes timeout/reconciliation state; no false success
+
+23
+
+Internal Response Duplicate
+
+Send same response twice
+
+Second response is identified as duplicate; final financial state remains unchanged
+
+24
+
+Internal Reservation Failure
+
+Return reservation failure response
+
+Transaction marked failed with correct response/error code; no settlement-ready status
+
+25
+
+Partial File Processing Failure
+
+Process large file → fail one batch
+
+Successful batches remain committed; failed batch is retryable/recoverable without duplicating successful batches
+
+26
+
+Large File Processing
+
+Submit large prefund/settlement file
+
+File is streamed/batched without excessive memory consumption
+
+27
+
+Database Unavailable
+
+Start processing → disconnect application from DB
+
+Processing pauses/fails safely; no false completion; retry/recovery available
+
+28
+
+Database Recovery
+
+Restore DB after processing interruption
+
+Pending work resumes safely; completed work is not duplicated
+
+29
+
+Database Concurrency Conflict
+
+Have two pods attempt same transaction update
+
+One update succeeds; other receives controlled concurrency/idempotency result
+
+30
+
+Settlement Amount Mismatch
+
+Prefund $100K → settlement $99K
+
+Transaction flagged according to business rule; reconciliation/exception generated
+
+31
+
+Settlement Unknown Prefund
+
+Send settlement for nonexistent prefund transaction
+
+Settlement not blindly applied; exception/reconciliation generated
+
+32
+
+Settlement Output Conversion Failure
+
+Process settlement → force conversion failure
+
+Settlement remains recoverable; no false SENT status
+
+33
+
+Outgoing Storage Failure
+
+Convert settlement → make outgoing storage unavailable
+
+DB does not report SENT until file is safely delivered
+
+34
+
+Partial Outgoing File
+
+Start writing output → terminate pod
+
+Downstream cannot consume incomplete file; recovery cleans/replaces temporary output
+
+35
+
+Duplicate Outgoing File
+
+Force retry after output file was already created
+
+System detects existing output/idempotency and avoids unintended duplicate delivery
+
+36
+
+File Watcher Restart
+
+Stop/restart application while files exist in incoming folder
+
+Existing files are rediscovered and processed; files aren’t lost because watcher missed an event
+
+37
+
+File Arrives During Deployment
+
+Deploy/restart pods while external system places file
+
+File remains discoverable and is eventually processed exactly once/effectively once
+
+38
+
+Simultaneous DC Processing
+
+Make same work visible to both DCs
+
+Only one worker owns the work; other DC does not create duplicate financial processing
+
+39
+
+DC Network Partition
+
+Partition DC1 from required dependencies → keep DC2 operational
+
+DC1 does not make unsafe assumptions; DC2 continues eligible processing; recovery is deterministic
+
+40
+
+DC Recovery
+
+Restore failed DC → bring pods back
+
+Recovered DC reconciles existing state and does not reprocess completed work
+
+41
+
+Outbox Recovery
+
+Create DB transaction + outbox → kill worker before publish
+
+Outbox worker later publishes event; no lost event
+
+42
+
+Outbox Duplicate Publish
+
+Publish event → simulate crash before marking published
+
+Event may be delivered again, but consumer idempotency prevents duplicate business effect
+
+43
+
+Retry Exhaustion
+
+Force repeated transient failure
+
+Retry count reaches limit; transaction enters explicit failed/reconciliation state
+
+44
+
+Memory Pressure
+
+Process large file with multiple concurrent batches
+
+Memory remains bounded; application does not continuously accumulate processed records
+
+45
+
+Resource Cleanup
+
+Interrupt processing during DB/file/MQ/HTTP operations
+
+Connections, streams, transactions, timers and other resources are released
+
+46
+
+Kubernetes Scale-Out
+
+Increase pods while files are processing
+
+New pods can acquire available work without duplicating active work
+
+47
+
+Kubernetes Scale-In
+
+Reduce pods during processing
+
+Terminating pods stop accepting work and active/recoverable work is safely completed/reclaimed
+
+48
+
+OOMKill Recovery
+
+Force worker pod OOMKill during batch
+
+Work is recoverable; completed transactions aren’t repeated; no corrupted state
+
+49
+
+Cross-DC Settlement Processing
+
+Settlement arrives in DC2 while corresponding prefund was processed in DC1
+
+Settlement correctly finds/matches authoritative prefund state
+
+50
+
+End-to-End Recovery
+
+Fail application/storage/MQ at different stages → restore infrastructure
+
+System reaches correct final state through retry/recovery/reconciliation without duplicate financial effects
