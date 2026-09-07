@@ -1,0 +1,2150 @@
+Yes. For your ACH platform, I would build this as a controlled, application-integrated Chaos Engineering Framework rather than a standalone “Chaos Monkey.” The framework should support both infrastructure-level pod failures and code-level conditional fault injection, while treating PostgreSQL, IBM MQ, and Kafka as externally managed dependencies that must never be restarted by this application.
+
+Below is a complete implementation prompt you can give to an AI coding agent such as Claude Code/Copilot.
+
+Build Prompt: Enterprise Conditional Chaos Engineering Framework
+
+1. Objective
+
+Build an enterprise-grade, configurable Chaos Engineering Framework integrated into an existing .NET 8/ASP.NET Core ACH Prefund and Settlement Processing application.
+
+The framework must allow controlled, auditable, dynamically configurable failure injection across:
+
+* ASP.NET Core APIs
+* BackgroundService workers
+* Prefund processing
+* Settlement processing
+* File ingestion
+* File parsing
+* Database operations
+* Transaction processing
+* Kafka publishing/consuming
+* IBM MQ publishing/consuming
+* Outbox processing
+* Retry processing
+* Reconciliation
+* Response-file generation
+* Storage operations
+* Pod/process lifecycle
+
+The framework must support:
+
+1. Conditional fault injection inside application code.
+2. Kubernetes/OpenShift pod restart/failure scenarios.
+3. Dynamic runtime configuration.
+4. Simulator-driven chaos execution.
+5. Scenario templates.
+6. Multi-step chaos scenarios.
+7. Start/stop/pause/cancel controls.
+8. Blast-radius controls.
+9. Time-based and count-based injection.
+10. File/transaction/batch/correlation-based targeting.
+11. Dependency-specific fault injection.
+12. Detailed input/output reporting.
+13. Full audit trail.
+14. Business-impact reporting.
+15. Automatic recovery verification.
+16. Multi-pod and multi-DC testing.
+17. Safety controls preventing accidental production-wide chaos.
+
+Do NOT restart or manipulate PostgreSQL, Kafka brokers, or IBM MQ infrastructure.
+
+These systems are managed by external teams.
+
+Instead, inject failures at the application’s interaction boundary with those systems.
+
+⸻
+
+2. Core Design Principle
+
+Implement Chaos Engineering as a first-class application capability.
+
+Use the following architecture:
+
+                    +----------------------+
+                    | Chaos Simulator UI   |
+                    +----------+-----------+
+                               |
+                               v
+                    +----------------------+
+                    | Chaos Management API  |
+                    +----------+-----------+
+                               |
+              +----------------+----------------+
+              |                                 |
+              v                                 v
+     +------------------+              +-------------------+
+     | Chaos Config DB   |              | Chaos Execution   |
+     | Scenarios         |              | Engine            |
+     | Rules             |              | Scheduler         |
+     | Experiments       |              | State Machine     |
+     +------------------+              +---------+---------+
+                                                |
+                         +----------------------+----------------------+
+                         |             |             |                |
+                         v             v             v                v
+                   API Injection  Service Inject  Dependency      Pod Control
+                                                    Injection
+                         |             |             |                |
+                         +-------------+-------------+----------------+
+                                       |
+                                       v
+                              ACH Application
+                                       |
+             +-------------------------+-------------------------+
+             |                         |                         |
+             v                         v                         v
+        PostgreSQL                 IBM MQ                    Kafka
+      External Managed         External Managed          External Managed
+                              OpenShift/Kubernetes
+                                      |
+                                      v
+                              Pod Restart/Scale
+
+The application must never require direct restart/control privileges over PostgreSQL, Kafka brokers, or IBM MQ infrastructure.
+
+⸻
+
+3. Chaos Framework Components
+
+Create the following logical components.
+
+3.1 Chaos Management API
+
+Create:
+
+ChaosController
+ChaosScenarioController
+ChaosExperimentController
+ChaosConfigurationController
+ChaosExecutionController
+ChaosReportController
+ChaosHealthController
+
+Responsibilities:
+
+* Create scenario
+* Update scenario
+* Enable/disable scenario
+* Start experiment
+* Stop experiment
+* Pause experiment
+* Resume experiment
+* Cancel experiment
+* Preview experiment
+* Validate experiment
+* Get execution status
+* Get experiment results
+* Get failures injected
+* Get business impact
+* Get recovery status
+* Get logs/traces
+* Get execution history
+
+⸻
+
+4. Chaos Domain Model
+
+Create the following entities.
+
+ChaosScenario
+
+ScenarioId
+Name
+Description
+Environment
+Enabled
+RiskLevel
+BlastRadius
+TargetType
+TargetSelector
+Duration
+MaxInjectionCount
+Cooldown
+CreatedBy
+CreatedAt
+UpdatedBy
+UpdatedAt
+Version
+
+ChaosExperiment
+
+ExperimentId
+ScenarioId
+ExecutionId
+CorrelationId
+Environment
+Cluster
+Namespace
+TargetPod
+TargetService
+StartedAt
+EndedAt
+Status
+ExpectedOutcome
+ActualOutcome
+PassFail
+FailureCount
+RecoveryCount
+BusinessImpact
+CreatedBy
+
+ChaosRule
+
+RuleId
+ScenarioId
+Stage
+Operation
+Condition
+FaultType
+Probability
+DelayMs
+ExceptionType
+ExceptionMessage
+MaxOccurrences
+Enabled
+Priority
+
+ChaosExecution
+
+ExecutionId
+ScenarioId
+StepId
+Status
+StartedAt
+CompletedAt
+InjectedCount
+SkippedCount
+RecoveredCount
+FailedCount
+Target
+CorrelationId
+TraceId
+
+⸻
+
+5. Conditional Fault Injection
+
+Implement a reusable abstraction:
+
+public interface IChaosEngine
+{
+    Task<ChaosDecision> EvaluateAsync(
+        ChaosContext context,
+        CancellationToken cancellationToken);
+}
+
+Implement:
+
+ChaosEngine
+ChaosRuleEvaluator
+ChaosConditionEvaluator
+ChaosTargetMatcher
+ChaosFaultInjector
+ChaosExecutionTracker
+ChaosSafetyGuard
+
+Every injection point should follow:
+
+Application operation
+       |
+       v
+ChaosEngine.Evaluate()
+       |
+       +---- Disabled --> Continue normally
+       |
+       +---- Condition false --> Continue normally
+       |
+       +---- Condition true --> Inject fault
+                              |
+                              +--> Record event
+                              +--> Emit metric
+                              +--> Emit trace
+                              +--> Execute fault
+
+The normal application path must remain unchanged when chaos is disabled.
+
+⸻
+
+6. ChaosContext
+
+Create a comprehensive context object:
+
+ChaosContext
+
+It should contain:
+
+CorrelationId
+TraceId
+SpanId
+RequestId
+TransactionId
+PaymentId
+FileId
+BatchId
+MessageId
+ScenarioId
+ExperimentId
+ExecutionId
+ApplicationName
+ServiceName
+WorkerName
+PodName
+Namespace
+Cluster
+DataCenter
+Operation
+ProcessingStage
+Dependency
+Direction
+FileType
+TransactionType
+BusinessStatus
+ProcessingStatus
+AttemptNumber
+RetryCount
+Timestamp
+
+The evaluator uses this context to determine whether a fault should be injected.
+
+⸻
+
+7. Supported Conditions
+
+The framework must support combinations of conditions.
+
+Identity conditions
+
+ScenarioId
+ExperimentId
+CorrelationId
+TransactionId
+FileId
+BatchId
+MessageId
+
+Infrastructure conditions
+
+Cluster
+Namespace
+Pod
+Container
+Node
+DataCenter
+AvailabilityZone
+Instance
+
+Application conditions
+
+Application
+Service
+Worker
+API
+Controller
+ProcessingStage
+Operation
+
+Dependency conditions
+
+PostgreSQL
+Kafka
+IBM MQ
+NFS
+S3
+HTTP
+Internal API
+
+Business conditions
+
+Transaction amount
+Transaction type
+File type
+SEC code
+Prefund/Settlement
+Transaction status
+Settlement status
+Batch number
+
+Temporal conditions
+
+StartTime
+EndTime
+Duration
+DayOfWeek
+TimeWindow
+
+Execution conditions
+
+FirstAttempt
+NthAttempt
+RetryNumber
+AfterSuccess
+AfterFailure
+AfterNMessages
+AfterNTransactions
+
+Probability conditions
+
+Example:
+
+Inject failure for 10% of matching MQ messages.
+
+⸻
+
+8. Condition Expression Engine
+
+Implement a safe expression language.
+
+Example:
+
+ProcessingStage == "RESERVATION_REQUEST"
+AND Dependency == "IBM_MQ"
+AND DataCenter == "DC1"
+AND AttemptNumber == 1
+
+Another:
+
+FileType == "SETTLEMENT"
+AND ProcessingStage == "SETTLEMENT_MATCH"
+AND Amount > 100000
+
+Another:
+
+Worker == "PrefundFileProcessor"
+AND PodName == "prefund-worker-*"
+AND RetryCount == 0
+
+Support:
+
+AND
+OR
+NOT
+==
+!=
+>
+<
+>=
+<=
+IN
+CONTAINS
+STARTS_WITH
+
+Do not execute arbitrary C# or arbitrary code from configuration.
+
+The condition engine must be sandboxed.
+
+⸻
+
+9. Fault Types
+
+Create an extensible fault model.
+
+Exception
+Delay
+Timeout
+ConnectionFailure
+NetworkFailure
+MessageDrop
+MessageDuplicate
+MessageReorder
+PartialResponse
+InvalidResponse
+EmptyResponse
+MalformedResponse
+BusinessFailure
+DatabaseFailure
+DatabaseTimeout
+MQFailure
+KafkaFailure
+StorageFailure
+FileReadFailure
+FileWriteFailure
+ChecksumFailure
+ParseFailure
+SerializationFailure
+DeserializationFailure
+Cancellation
+ProcessCrash
+PodRestart
+MemoryPressure
+ThreadPoolPressure
+RetryExhaustion
+
+⸻
+
+10. API Chaos Injection
+
+Provide injection points for:
+
+HTTP request
+HTTP response
+Controller
+Middleware
+Authentication
+Authorization
+Validation
+Serialization
+External HTTP calls
+Database calls
+MQ calls
+Kafka calls
+File operations
+
+Examples:
+
+Inject 5 second API latency.
+Return HTTP 503.
+Throw TimeoutException.
+Drop response.
+Return malformed response.
+Force cancellation.
+Inject 1% random failures.
+
+⸻
+
+11. Background Service Chaos
+
+Integrate the Chaos Engine into:
+
+FileIntakeWorker
+PrefundFileProcessor
+SettlementFileProcessor
+OutboxPublisher
+MQResponseProcessor
+KafkaConsumer
+KafkaProducer
+RetryProcessor
+ReconciliationProcessor
+ResponseFileGenerator
+CleanupProcessor
+
+Each worker must provide named chaos checkpoints.
+
+Example:
+
+FILE_DISCOVERY
+FILE_REGISTRATION
+FILE_CHECKSUM
+FILE_DUPLICATE_CHECK
+FILE_PARSING
+FILE_VALIDATION
+DATABASE_INSERT
+OUTBOX_CREATION
+MQ_PUBLISH
+MQ_RESPONSE
+PREFUND_RESERVATION
+SETTLEMENT_MATCH
+SETTLEMENT_UPDATE
+RESPONSE_FILE_GENERATION
+RESPONSE_FILE_WRITE
+
+⸻
+
+12. PostgreSQL Chaos
+
+Do NOT restart PostgreSQL.
+
+Do NOT modify PostgreSQL infrastructure.
+
+Inject failures around the application’s database boundary.
+
+Supported scenarios:
+
+Connection timeout
+Connection unavailable
+Command timeout
+Transaction timeout
+Artificial latency
+Deadlock simulation
+Serialization/concurrency exception
+Transient database exception
+Connection pool exhaustion simulation
+Commit failure simulation
+Rollback failure simulation
+Query cancellation
+
+Example:
+
+Before DB command:
+    Evaluate chaos rule.
+If enabled:
+    Delay 5000 ms.
+Then:
+    Execute normal command.
+
+For commit failure testing:
+
+DB transaction
+      |
+      v
+Commit
+      |
+      +--> Chaos injection
+              |
+              +--> simulated commit failure
+
+Important:
+
+Do not corrupt real financial data merely to test failure behavior.
+
+Prefer controlled test transactions/files.
+
+⸻
+
+13. IBM MQ Chaos
+
+IBM MQ is externally managed.
+
+Never restart the queue manager.
+
+Never alter MQ infrastructure.
+
+Inject at the application MQ adapter boundary.
+
+Create:
+
+IChaosAwareMqClient
+
+Supported faults:
+
+Connection failure
+Connection timeout
+Send timeout
+Receive timeout
+Send exception
+Receive exception
+Message delay
+Message drop
+Message duplicate
+Response delay
+Malformed response
+Invalid correlation ID
+Unexpected response code
+Partial response simulation
+
+Example:
+
+Application
+    |
+    v
+IMqClient
+    |
+    v
+Chaos MQ Decorator
+    |
+    +---- Inject timeout
+    |
+    v
+IBM MQ
+
+Support both:
+
+Outbound request chaos
+Inbound response chaos
+
+⸻
+
+14. Kafka Chaos
+
+Kafka is externally managed.
+
+Never restart Kafka brokers.
+
+Do not alter broker configuration.
+
+Inject at:
+
+KafkaProducer
+KafkaConsumer
+KafkaHandler
+
+Support:
+
+Publish delay
+Publish timeout
+Publish exception
+Message drop
+Message duplicate
+Consumer processing delay
+Consumer exception
+Deserialization failure
+Invalid message
+Commit failure simulation
+Consumer cancellation
+Artificial consumer lag
+Retry exhaustion
+
+For duplicate-message testing:
+
+Message A
+   |
+   +---- normal delivery
+   |
+   +---- duplicate delivery
+
+The business layer must prove idempotency.
+
+⸻
+
+15. File Storage Chaos
+
+Support:
+
+NFS unavailable
+S3 unavailable
+Read failure
+Write failure
+Permission failure
+File-not-found
+File locked
+Partial file
+Slow read
+Slow write
+Checksum mismatch
+Disk/full simulation
+Temporary file failure
+Rename failure
+Atomic move failure
+
+Do not physically destroy production files.
+
+Use controlled test directories or simulated failures at the storage abstraction.
+
+⸻
+
+16. Pod-Level Chaos
+
+Pod-level chaos is the one infrastructure action the framework may request.
+
+Create a Kubernetes/OpenShift integration.
+
+Support:
+
+Restart pod
+Delete pod
+Graceful termination
+Force termination
+Scale deployment
+Scale worker count
+
+Target:
+
+Namespace
+Deployment
+Pod
+Label
+Cluster
+DataCenter
+
+Example:
+
+Target:
+application=ach-service
+worker=prefund
+cluster=DC1
+
+Then:
+
+Delete one matching pod.
+
+Kubernetes/OpenShift should recreate it.
+
+The framework must verify:
+
+Pod terminated
+New pod started
+Application became healthy
+Work was recovered
+No duplicate business effect
+
+Use least-privilege service-account permissions.
+
+⸻
+
+17. Pod Restart Safety
+
+Never allow unrestricted pod deletion.
+
+Require:
+
+Environment
+Namespace
+Target
+MaximumPods
+MaximumPercentage
+Approval
+ScenarioId
+ExperimentId
+
+Example safety rule:
+
+Never terminate more than 1 pod
+AND
+never terminate more than 25% of pods
+AND
+only namespace=ach-chaos-test
+
+Production should require explicit authorization.
+
+⸻
+
+18. Chaos Safety Guard
+
+Create:
+
+IChaosSafetyGuard
+
+It must validate every experiment before execution.
+
+Prevent:
+
+Unrestricted pod deletion
+Unbounded message dropping
+Unbounded transaction failures
+Production execution without authorization
+Chaos on unknown namespace
+Chaos on unknown service
+Chaos without expiration
+Multiple destructive experiments simultaneously
+
+Every scenario must have:
+
+MaximumDuration
+MaximumInjectionCount
+MaximumAffectedPods
+MaximumAffectedTransactions
+MaximumFailurePercentage
+
+Automatically disable the experiment after its duration expires.
+
+⸻
+
+19. Dynamic Configuration
+
+Chaos configuration must be dynamically changeable.
+
+Do not require application restart.
+
+Use:
+
+PostgreSQL ChaosConfiguration tables
+
+or an approved distributed configuration provider.
+
+Configuration changes should be versioned.
+
+Example:
+
+{
+  "scenarioId": "CHAOS-MQ-001",
+  "enabled": true,
+  "target": {
+    "environment": "TEST",
+    "service": "ACH",
+    "worker": "PrefundFileProcessor"
+  },
+  "condition": {
+    "expression": "ProcessingStage == 'MQ_PUBLISH' AND DataCenter == 'DC1'"
+  },
+  "fault": {
+    "type": "Timeout",
+    "delayMs": 10000
+  },
+  "limits": {
+    "maxOccurrences": 5,
+    "maxDurationSeconds": 300
+  }
+}
+
+Use configuration versioning:
+
+Version 1
+Version 2
+Version 3
+
+Each execution records the exact configuration version used.
+
+⸻
+
+20. Configuration Refresh
+
+Implement:
+
+IChaosConfigurationProvider
+IChaosConfigurationCache
+IChaosConfigurationRefresher
+
+Support:
+
+Polling
+Push/event notification
+Manual refresh
+Configuration version
+
+Recommended:
+
+Cache configuration locally
++
+short refresh interval
++
+immediate refresh on simulator activation
+
+Do not query the database for every transaction.
+
+⸻
+
+21. Chaos Configuration State Machine
+
+Scenario:
+
+DRAFT
+  |
+  v
+VALIDATED
+  |
+  v
+ENABLED
+  |
+  v
+RUNNING
+  |
+  +---- PAUSED
+  |
+  v
+COMPLETED
+  |
+  v
+DISABLED
+
+Failure:
+
+RUNNING
+   |
+   v
+ABORTED
+
+⸻
+
+22. Simulator
+
+Build a dedicated Chaos Simulator UI.
+
+The simulator must NOT be a generic admin screen.
+
+Primary workflow:
+
+Select Scenario
+      |
+      v
+Select Environment
+      |
+      v
+Select Cluster/DC
+      |
+      v
+Select Target
+      |
+      v
+Configure Fault
+      |
+      v
+Configure Conditions
+      |
+      v
+Configure Blast Radius
+      |
+      v
+Validate
+      |
+      v
+Preview
+      |
+      v
+Start Experiment
+      |
+      v
+Monitor
+      |
+      v
+View Result
+
+⸻
+
+23. Simulator Scenario Builder
+
+Provide fields:
+
+Scenario Name
+Description
+Environment
+Cluster
+Data Center
+Application
+Service
+Worker
+Target Pod
+Processing Stage
+Dependency
+Condition
+Fault Type
+Delay
+Failure Percentage
+Maximum Occurrences
+Duration
+Retry Behavior
+Expected Result
+
+Provide a human-readable summary:
+
+This experiment will:
+Target:
+DC1 / PrefundFileProcessor
+Condition:
+MQ_PUBLISH
+Fault:
+10-second timeout
+Maximum:
+5 transactions
+Duration:
+5 minutes
+Expected:
+Outbox retry should recover all messages.
+
+⸻
+
+24. Pre-Execution Preview
+
+Before Start, display:
+
+Target pods: 2
+Expected matching transactions: 10
+Maximum affected transactions: 5
+Fault: MQ timeout
+Duration: 300 seconds
+Current application health: HEALTHY
+Current DB health: HEALTHY
+Current MQ health: HEALTHY
+Current Kafka health: HEALTHY
+
+Require confirmation.
+
+⸻
+
+25. Experiment Dashboard
+
+Create an MVP dashboard with:
+
+Experiment Summary
+
+Experiment ID
+Scenario
+Status
+Started
+Duration
+Environment
+Cluster
+DC
+Target
+
+Input
+
+Scenario configuration
+Target
+Condition
+Fault
+Blast radius
+Expected result
+
+Execution
+
+Injection attempts
+Successful injections
+Skipped
+Failures
+Retries
+Affected pods
+Affected files
+Affected transactions
+
+Business Impact
+
+Prefund files
+Prefund transactions
+Settlement files
+Settlement transactions
+Successful
+Pending
+Failed
+Reprocessed
+Reconciled
+Duplicate prevented
+
+Recovery
+
+Recovered transactions
+Recovery time
+Outbox recovered
+MQ recovered
+Kafka recovered
+Pod recovered
+Database recovered
+Settlement recovered
+
+Final Result
+
+PASS
+FAIL
+PARTIAL
+ABORTED
+
+⸻
+
+26. Experiment Report
+
+Every experiment must generate a structured report.
+
+Example:
+
+==================================================
+CHAOS EXPERIMENT REPORT
+==================================================
+Experiment:
+CHAOS-MQ-001
+Objective:
+Validate outbox recovery when IBM MQ becomes unavailable.
+Environment:
+QA
+Cluster:
+DC1
+Target:
+PrefundFileProcessor
+Fault:
+MQ timeout
+Duration:
+120 seconds
+Maximum injections:
+5
+--------------------------------------------------
+INPUT
+--------------------------------------------------
+Condition:
+ProcessingStage = MQ_PUBLISH
+Fault:
+Timeout 10 seconds
+Expected:
+DB transaction remains committed.
+Outbox remains pending.
+Retry publisher eventually publishes message.
+No duplicate financial reservation.
+--------------------------------------------------
+EXECUTION
+--------------------------------------------------
+Injection attempts: 5
+Injected: 5
+Skipped: 0
+Files affected: 1
+Transactions affected: 5
+--------------------------------------------------
+RECOVERY
+--------------------------------------------------
+Outbox recovered: YES
+Messages published: 5
+Duplicates: 0
+--------------------------------------------------
+BUSINESS RESULT
+--------------------------------------------------
+Prefund requests: 5
+Successful reservations: 5
+Lost transactions: 0
+Duplicate reservations: 0
+--------------------------------------------------
+RESULT
+--------------------------------------------------
+PASS
+Recovery time:
+23 seconds
+
+⸻
+
+27. Timeline View
+
+Display:
+
+10:00:01 File received
+10:00:02 File validated
+10:00:03 Transactions persisted
+10:00:03 Outbox created
+10:00:04 Chaos activated
+10:00:04 MQ timeout injected
+10:00:05 Outbox retry scheduled
+10:00:14 MQ available
+10:00:15 Message published
+10:00:16 Response received
+10:00:17 Reservation completed
+
+Allow drill-down:
+
+Experiment
+   |
+   +-- File
+       |
+       +-- Transaction
+           |
+           +-- Trace
+               |
+               +-- DB
+               +-- Outbox
+               +-- Kafka
+               +-- MQ
+               +-- Worker
+
+⸻
+
+28. Observability Integration
+
+Integrate with OpenTelemetry.
+
+Every chaos event should contain:
+
+experiment.id
+scenario.id
+execution.id
+chaos.rule.id
+correlation.id
+trace.id
+span.id
+application
+service
+worker
+pod
+cluster
+datacenter
+fault.type
+fault.stage
+fault.dependency
+injected
+skipped
+recovered
+timestamp
+duration
+
+Create logs:
+
+ChaosFaultInjected
+ChaosFaultSkipped
+ChaosExperimentStarted
+ChaosExperimentCompleted
+ChaosExperimentAborted
+ChaosRecoveryDetected
+ChaosSafetyViolation
+
+⸻
+
+29. Metrics
+
+Create metrics such as:
+
+chaos_experiment_total
+chaos_experiment_success_total
+chaos_experiment_failure_total
+chaos_fault_injection_total
+chaos_fault_skipped_total
+chaos_recovery_total
+chaos_recovery_duration
+chaos_affected_files
+chaos_affected_transactions
+chaos_business_failures
+chaos_duplicate_prevented
+chaos_retry_total
+chaos_outbox_recovery_total
+
+Do not use transaction ID, account ID, or other high-cardinality business identifiers as metric labels.
+
+⸻
+
+30. Audit
+
+Create immutable audit records.
+
+Record:
+
+Who started experiment
+Who stopped experiment
+When
+Scenario
+Configuration version
+Environment
+Target
+Fault
+Condition
+Blast radius
+Result
+
+For every injected fault:
+
+ExperimentId
+ExecutionId
+ScenarioId
+RuleId
+CorrelationId
+TransactionId
+FileId
+Stage
+Dependency
+Fault
+Timestamp
+Outcome
+
+⸻
+
+31. ACH-Specific Chaos Scenarios
+
+Implement predefined scenario templates.
+
+Scenario 1 – Pod Failure During Prefund
+
+Stage:
+DATABASE_INSERT
+Action:
+Restart one pod
+Expected:
+Another pod resumes/reclaims work.
+Pass:
+No lost transactions.
+No duplicate transaction.
+
+Scenario 2 – Pod Failure After DB Commit
+
+Stage:
+AFTER_DB_COMMIT
+Action:
+Terminate pod
+Expected:
+Outbox/work state recovers.
+Pass:
+Exactly one business effect.
+
+Scenario 3 – Pod Failure After MQ Publish
+
+Stage:
+AFTER_MQ_PUBLISH
+Action:
+Terminate pod
+Expected:
+Duplicate message may occur.
+Business layer:
+Must suppress duplicate business effect.
+
+Scenario 4 – IBM MQ Timeout
+
+Stage:
+MQ_PUBLISH
+Fault:
+Timeout 10 seconds
+Expected:
+Outbox remains pending.
+Retry succeeds.
+
+Scenario 5 – IBM MQ Delayed Response
+
+Stage:
+MQ_RESPONSE
+Fault:
+Delay 30 seconds
+Expected:
+No premature permanent failure.
+Response eventually reconciles.
+
+Scenario 6 – Kafka Publish Failure
+
+Stage:
+KAFKA_PUBLISH
+Fault:
+Connection failure
+Expected:
+Outbox/retry mechanism recovers.
+
+Scenario 7 – Kafka Duplicate
+
+Stage:
+KAFKA_CONSUME
+Fault:
+Duplicate message
+Expected:
+Idempotent processing.
+
+Scenario 8 – PostgreSQL Timeout
+
+Stage:
+DATABASE_INSERT
+Fault:
+Timeout
+Expected:
+Transaction rollback/retry.
+No partial persistence.
+
+Scenario 9 – Settlement During Prefund Processing
+
+Settlement arrives while prefund is incomplete.
+Expected:
+Settlement becomes WAITING_FOR_PREFUND.
+Later:
+Prefund completes.
+Then:
+Settlement automatically resumes.
+
+Scenario 10 – Settlement Amount Mismatch
+
+Expected:
+Settlement rejected/reconciliation required.
+No incorrect settlement completion.
+
+⸻
+
+32. Multi-DC Chaos
+
+Support:
+
+DC1
+DC2
+
+Scenarios:
+
+DC1 pod failure
+DC2 pod failure
+DC1 storage unavailable
+DC2 storage unavailable
+DC1 application unavailable
+DC2 application unavailable
+DC1 network isolation
+DC2 network isolation
+Simultaneous pod execution
+Cross-DC work recovery
+
+Important:
+
+The chaos framework must validate that the same business transaction cannot be processed simultaneously by both DCs.
+
+Test:
+
+DC1 claims transaction
+        |
+        X
+DC1 crashes
+        |
+        v
+DC2 claims/reclaims transaction
+
+Verify:
+
+No duplicate reservation
+No duplicate settlement
+No duplicate outgoing file
+
+⸻
+
+33. Cross-DC Experiment
+
+Predefined scenario:
+
+CHAOS-DC-FAILOVER-001
+
+Steps:
+
+1. Submit prefund file.
+2. Allow DB persistence.
+3. Inject DC1 pod failure.
+4. Verify DC1 worker stops.
+5. Verify DC2 detects recoverable work.
+6. DC2 resumes processing.
+7. MQ request completes.
+8. Settlement arrives.
+9. Settlement is processed.
+10. Response file generated.
+
+Expected:
+
+No lost transactions
+No duplicate reservation
+No duplicate settlement
+No duplicate response file
+Correct audit trail
+
+⸻
+
+34. Chaos Scenario Chaining
+
+Support multi-step experiments.
+
+Example:
+
+STEP 1
+Inject PostgreSQL latency for 10 seconds
+WAIT
+20 seconds
+STEP 2
+Restart one Prefund pod
+WAIT
+10 seconds
+STEP 3
+Inject MQ timeout
+WAIT
+30 seconds
+STEP 4
+Remove all chaos
+STEP 5
+Verify recovery
+
+Represent as:
+
+Scenario
+  |
+  +-- Step 1
+  +-- Step 2
+  +-- Step 3
+  +-- Step 4
+  +-- Verification
+
+⸻
+
+35. Automated Verification
+
+Every experiment must have assertions.
+
+Examples:
+
+assert no lost files
+assert no duplicate transaction
+assert no duplicate reservation
+assert no duplicate settlement
+assert outbox eventually empty
+assert pending work eventually decreases
+assert pod becomes healthy
+assert retry succeeds
+assert reconciliation count == 0
+assert outgoing file exists
+assert outgoing checksum valid
+
+Create:
+
+IChaosAssertionEngine
+
+Assertions should produce:
+
+PASS
+FAIL
+NOT_VERIFIABLE
+
+⸻
+
+36. Recovery SLA
+
+Allow scenario-specific recovery expectations.
+
+Example:
+
+Expected recovery:
+<= 60 seconds
+
+Report:
+
+Expected: 60 sec
+Actual: 23 sec
+Result: PASS
+
+⸻
+
+37. Dry Run
+
+Every experiment must support:
+
+DRY_RUN
+LIVE
+
+Dry run:
+
+Evaluate conditions
+Find target
+Calculate blast radius
+Show expected injections
+Do NOT inject faults
+
+This is mandatory before live execution.
+
+⸻
+
+38. Environment Controls
+
+Configuration:
+
+Development
+QA
+Performance
+Chaos
+Production
+
+Default:
+
+Chaos disabled
+
+Production:
+
+Chaos disabled
+
+unless explicit authorization is configured.
+
+⸻
+
+39. RBAC
+
+Roles:
+
+ChaosViewer
+ChaosOperator
+ChaosAdmin
+ChaosApprover
+
+Permissions:
+
+View scenarios
+Create scenario
+Modify scenario
+Enable scenario
+Start experiment
+Stop experiment
+Pod restart
+View reports
+Export reports
+
+Require elevated permission for destructive actions.
+
+⸻
+
+40. Kill Switch
+
+Implement a global kill switch:
+
+CHAOS_GLOBAL_ENABLED=false
+
+When false:
+
+No fault injection
+No pod actions
+No scheduled experiments
+
+Also provide:
+
+STOP ALL EXPERIMENTS
+
+The kill switch must be checked by the execution engine and fault injector.
+
+⸻
+
+41. Automatic Expiration
+
+Every live experiment must have:
+
+ExpirationTime
+
+If expiration is reached:
+
+Disable rules
+Stop execution
+Restore normal behavior
+Mark experiment EXPIRED
+
+The application must fail safe.
+
+⸻
+
+42. Concurrency Control
+
+Do not allow uncontrolled experiments.
+
+Implement:
+
+MaximumActiveExperiments
+MaximumExperimentsPerService
+MaximumExperimentsPerDC
+MaximumAffectedPods
+
+Example:
+
+Only one destructive experiment
+per application/DC
+at a time.
+
+⸻
+
+43. Configuration Database
+
+Suggested tables:
+
+chaos_scenario
+chaos_rule
+chaos_condition
+chaos_fault
+chaos_experiment
+chaos_execution
+chaos_execution_step
+chaos_injection_event
+chaos_assertion
+chaos_assertion_result
+chaos_audit
+chaos_configuration_version
+chaos_safety_policy
+
+Add indexes for:
+
+ScenarioId
+ExperimentId
+ExecutionId
+Status
+Environment
+CreatedAt
+CorrelationId
+
+⸻
+
+44. API Endpoints
+
+Implement approximately:
+
+GET    /api/chaos/scenarios
+POST   /api/chaos/scenarios
+PUT    /api/chaos/scenarios/{id}
+DELETE /api/chaos/scenarios/{id}
+POST   /api/chaos/scenarios/{id}/validate
+POST   /api/chaos/scenarios/{id}/dry-run
+POST   /api/chaos/scenarios/{id}/start
+GET    /api/chaos/experiments
+GET    /api/chaos/experiments/{id}
+POST   /api/chaos/experiments/{id}/pause
+POST   /api/chaos/experiments/{id}/resume
+POST   /api/chaos/experiments/{id}/cancel
+GET    /api/chaos/experiments/{id}/timeline
+GET    /api/chaos/experiments/{id}/report
+GET    /api/chaos/experiments/{id}/assertions
+POST   /api/chaos/global/disable
+GET    /api/chaos/health
+GET    /api/chaos/metrics
+
+⸻
+
+45. Dependency Abstraction
+
+Do not inject chaos directly into business logic everywhere.
+
+Use decorators/middleware/adapters.
+
+Examples:
+
+ChaosAwareDbConnection
+ChaosAwareMqClient
+ChaosAwareKafkaProducer
+ChaosAwareKafkaConsumer
+ChaosAwareFileStorage
+ChaosAwareHttpClient
+
+Architecture:
+
+Business Service
+      |
+      v
+Interface
+      |
+      +---- Chaos Decorator
+      |
+      v
+Real Implementation
+
+This keeps chaos isolated from business functionality.
+
+⸻
+
+46. Example
+
+Normal:
+
+IPaymentReservationService
+       |
+       v
+IMqClient
+       |
+       v
+IBM MQ
+
+Chaos:
+
+IPaymentReservationService
+       |
+       v
+ChaosAwareMqClient
+       |
+       +---- ChaosEngine
+       |
+       v
+RealMqClient
+       |
+       v
+IBM MQ
+
+When chaos is disabled:
+
+ChaosAwareMqClient
+       |
+       v
+RealMqClient
+
+with negligible overhead.
+
+⸻
+
+47. Performance Requirement
+
+Chaos functionality must have minimal overhead when disabled.
+
+Do not:
+
+query DB for every transaction
+deserialize large configuration repeatedly
+perform network calls for every chaos check
+create excessive allocations
+
+Use:
+
+in-memory configuration cache
+compiled conditions
+efficient rule lookup
+short-circuit evaluation
+
+Target:
+
+Chaos disabled:
+<1% measurable processing overhead
+
+Validate this with performance testing.
+
+⸻
+
+48. Failure Injection Must Be Deterministic
+
+Support deterministic experiments.
+
+Example:
+
+Inject failure on transaction #5
+
+or:
+
+Inject failure on first MQ request
+
+or:
+
+Inject failure exactly after DB commit.
+
+Also support random mode:
+
+10% probability
+
+Record the random seed for reproducibility.
+
+⸻
+
+49. Business Safety
+
+Because this is a financial ACH platform:
+
+Never use real production financial transactions for destructive experiments unless specifically approved.
+
+Prefer:
+
+synthetic transaction
+test transaction
+dedicated test file
+sandbox downstream
+
+Every chaos experiment must have:
+
+Test Data Identifier
+
+and the simulator should clearly indicate:
+
+SYNTHETIC DATA ONLY
+
+⸻
+
+50. Required Initial Scenario Library
+
+Build these scenarios into the application.
+
+CHAOS-API-LATENCY-001
+CHAOS-API-ERROR-001
+CHAOS-POD-RESTART-001
+CHAOS-POD-RESTART-PREFUND-001
+CHAOS-POD-RESTART-SETTLEMENT-001
+CHAOS-DB-TIMEOUT-001
+CHAOS-DB-LATENCY-001
+CHAOS-DB-CONCURRENCY-001
+CHAOS-MQ-TIMEOUT-001
+CHAOS-MQ-RESPONSE-DELAY-001
+CHAOS-MQ-DUPLICATE-001
+CHAOS-MQ-CONNECTION-001
+CHAOS-KAFKA-TIMEOUT-001
+CHAOS-KAFKA-DUPLICATE-001
+CHAOS-KAFKA-CONSUMER-001
+CHAOS-KAFKA-LAG-001
+CHAOS-FILE-READ-001
+CHAOS-FILE-WRITE-001
+CHAOS-FILE-PARTIAL-001
+CHAOS-OUTBOX-001
+CHAOS-OUTBOX-DUPLICATE-001
+CHAOS-SETTLEMENT-MATCH-001
+CHAOS-SETTLEMENT-MISMATCH-001
+CHAOS-DC-FAILOVER-001
+CHAOS-DC-PARTITION-001
+CHAOS-E2E-RECOVERY-001
+
+⸻
+
+51. Test Automation
+
+Create automated integration tests for every fault injector.
+
+Tests must verify:
+
+Chaos disabled -> normal processing
+Condition false -> normal processing
+Condition true -> fault injected
+Maximum occurrence -> injection stops
+Duration expires -> injection stops
+Global kill switch -> injection stops
+Experiment cancelled -> injection stops
+Invalid configuration -> experiment rejected
+Unsafe target -> experiment rejected
+Duplicate message -> idempotency maintained
+Pod restart -> work recovered
+DB timeout -> retry/recovery
+MQ timeout -> outbox recovery
+Kafka duplicate -> duplicate business effect prevented
+
+⸻
+
+52. Chaos Framework Health
+
+Expose:
+
+Chaos Framework Health
+
+Display:
+
+Configuration loaded
+Configuration version
+Global chaos status
+Active experiments
+Expired experiments
+Fault injection engine status
+Kubernetes integration status
+Last configuration refresh
+Last experiment
+
+⸻
+
+53. Security Requirements
+
+Never allow configuration to execute arbitrary code.
+
+Never expose:
+
+database passwords
+MQ credentials
+Kafka credentials
+access tokens
+connection strings
+
+Do not put sensitive payment/account information into chaos logs.
+
+Mask:
+
+account numbers
+routing numbers
+personal information
+payment data
+credentials
+
+⸻
+
+54. Implementation Structure
+
+Recommended .NET structure:
+
+src/
+  Chaos/
+    Abstractions/
+      IChaosEngine.cs
+      IChaosFault.cs
+      IChaosCondition.cs
+      IChaosTargetMatcher.cs
+      IChaosSafetyGuard.cs
+      IChaosAssertionEngine.cs
+    Core/
+      ChaosEngine.cs
+      ChaosRuleEvaluator.cs
+      ChaosConditionEvaluator.cs
+      ChaosTargetMatcher.cs
+      ChaosFaultInjector.cs
+      ChaosExecutionManager.cs
+    Faults/
+      ExceptionFault.cs
+      DelayFault.cs
+      TimeoutFault.cs
+      MessageDropFault.cs
+      MessageDuplicateFault.cs
+      ConnectionFailureFault.cs
+      PodRestartFault.cs
+    Dependencies/
+      ChaosAwareDbClient.cs
+      ChaosAwareMqClient.cs
+      ChaosAwareKafkaProducer.cs
+      ChaosAwareKafkaConsumer.cs
+      ChaosAwareFileStorage.cs
+    Configuration/
+      ChaosConfigurationProvider.cs
+      ChaosConfigurationCache.cs
+      ChaosConfigurationRefresher.cs
+    Kubernetes/
+      KubernetesChaosClient.cs
+      PodRestartManager.cs
+    Persistence/
+      ChaosDbContext.cs
+      Repositories/
+    API/
+      ChaosController.cs
+      ChaosScenarioController.cs
+      ChaosExperimentController.cs
+    Reporting/
+      ChaosReportService.cs
+      ChaosAssertionService.cs
+
+⸻
+
+55. Definition of Done
+
+The implementation is complete only when all of the following work.
+
+Configuration
+
+* Dynamic configuration
+* Versioning
+* Enable/disable
+* Global kill switch
+* Automatic expiration
+
+Injection
+
+* API
+* Background services
+* PostgreSQL boundary
+* IBM MQ boundary
+* Kafka boundary
+* File storage
+* Outbox
+* Pod restart
+
+Simulator
+
+* Scenario creation
+* Condition builder
+* Fault selection
+* Blast-radius configuration
+* Dry run
+* Start
+* Pause
+* Resume
+* Cancel
+* Live status
+
+Dashboard
+
+* Experiment input
+* Execution
+* Faults injected
+* Business impact
+* Recovery
+* Assertions
+* Timeline
+* PASS/FAIL
+
+Safety
+
+* RBAC
+* Environment protection
+* Maximum blast radius
+* Maximum duration
+* Maximum injection count
+* Kill switch
+* Audit trail
+
+ACH Validation
+
+Prove:
+
+No lost files
+No lost transactions
+No duplicate financial effects
+No duplicate reservations
+No duplicate settlements
+No duplicate outgoing files
+Correct retry behavior
+Correct outbox recovery
+Correct reconciliation
+Correct multi-DC recovery
+
+⸻
+
+56. Most Important Architecture Rule
+
+Do NOT implement this as:
+
+Chaos Monkey
+      |
+      +--> Restart Postgres
+      +--> Restart Kafka
+      +--> Restart IBM MQ
+
+Instead implement:
+
+                         CHAOS FRAMEWORK
+                               |
+             +-----------------+------------------+
+             |                 |                  |
+             v                 v                  v
+       Code Injection      Pod Control       Verification
+             |
+      +------+-------+---------+---------+
+      |              |         |         |
+      v              v         v         v
+   PostgreSQL      IBM MQ    Kafka     Storage
+   boundary       boundary  boundary   boundary
+      |              |         |         |
+      v              v         v         v
+    External       External  External  External
+    PostgreSQL     IBM MQ    Kafka     NFS/S3
+
+The framework controls how the application experiences failures, while external teams continue to own the infrastructure.
+
+The final system should make it possible for an operator to select:
+
+“Kill one Prefund pod in DC1 immediately after DB commit, then verify outbox recovery and ensure no duplicate MQ reservation.”
+
+or:
+
+“For the next five settlement transactions, inject a 10-second IBM MQ response timeout and verify retry, idempotency, reconciliation, and final settlement completion.”
+
+or:
+
+“Inject PostgreSQL timeout during settlement matching, restart one application pod, then verify that the settlement is eventually processed exactly once.”
+
+The simulator should turn each of these into a repeatable, auditable experiment with measurable input → fault → system behavior → recovery → business outcome.
+
+This prompt is intentionally structured so the Chaos capability remains separate from the ACH business logic, while still having injection points at every critical processing boundary. That separation will make it much easier to enable/disable the capability, test it independently, and eventually deploy it as a reusable internal framework across other .NET payment services.
