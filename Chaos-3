@@ -1,0 +1,435 @@
+Yes — that is a better long-term architecture. I would make the Chaos platform technology-independent, with a central UI/API/control plane and lightweight client libraries/agents for .NET and Spring Boot.
+
+The key distinction is:
+
+Chaos Control Plane = centralized and technology agnostic
+Chaos SDK = embedded into each application
+Chaos API = the contract between them
+
+This lets the same simulator control .NET, Java/Spring, and eventually other technologies.
+
+Recommended architecture
+
+                         CHAOS CONTROL PLANE
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│                 Generalized Chaos UI                        │
+│                                                             │
+│ Scenario Builder | Simulator | Execution | Dashboard       │
+│ Reports          | Audit     | Approvals | History         │
+│                                                             │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ REST/gRPC
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Chaos Management API                      │
+│                                                             │
+│ Scenario API | Execution API | Config API | Report API     │
+│ Target API   | Approval API  | Health API  | Kill Switch   │
+└───────────────────────────┬─────────────────────────────────┘
+                            │
+                 ┌──────────┴──────────┐
+                 │                     │
+                 ▼                     ▼
+        ┌────────────────┐    ┌────────────────┐
+        │ Chaos DB       │    │ Execution      │
+        │                │    │ Engine         │
+        │ Scenarios      │    │                │
+        │ Rules          │    │ Scheduler      │
+        │ Executions     │    │ Targeting      │
+        │ Audit          │    │ Safety         │
+        └────────────────┘    └───────┬────────┘
+                                      │
+                   ┌──────────────────┼──────────────────┐
+                   │                  │                  │
+                   ▼                  ▼                  ▼
+             .NET SDK           Spring SDK         Pod Adapter
+                   │                  │                  │
+                   ▼                  ▼                  ▼
+              .NET App           Spring App       Kubernetes/
+              /Worker             /Worker          OpenShift
+
+Application integration
+
+The application should have a very small integration surface:
+
+.NET Application
+       │
+       ├── Chaos SDK
+       │      │
+       │      └── calls Chaos API
+       │
+       ├── Chaos-aware MQ adapter
+       ├── Chaos-aware Kafka adapter
+       ├── Chaos-aware DB adapter
+       └── Chaos-aware Storage adapter
+
+And Spring:
+
+Spring Boot Application
+       │
+       ├── Chaos Starter
+       │      │
+       │      └── calls Chaos API
+       │
+       ├── Chaos-aware MQ adapter
+       ├── Chaos-aware Kafka adapter
+       ├── Chaos-aware DB adapter
+       └── Chaos-aware Storage adapter
+
+One important change to the earlier design
+
+I would not make every injection request synchronously call the Chaos API.
+
+For example, if you process 100,000 transactions:
+
+BAD
+Transaction
+   ↓
+Call Chaos API
+   ↓
+Evaluate
+   ↓
+Process transaction
+
+That creates dependency on the Chaos platform and unnecessary latency.
+
+Instead:
+
+Chaos UI
+   ↓
+Chaos API
+   ↓
+Configuration
+   ↓
+.NET/Spring SDK
+   ↓
+Local configuration cache
+   ↓
+Fast local evaluation
+   ↓
+Fault injection
+
+The SDK periodically pulls configuration or receives a configuration notification.
+
+Then:
+
+Evaluate locally
+      ↓
+condition matches?
+      ↓
+YES → inject
+NO  → normal processing
+
+The SDK reports injection events asynchronously.
+
+This means the Chaos platform can itself be unavailable without breaking the payment application.
+
+⸻
+
+Generalized Chaos API contract
+
+Define a technology-neutral contract such as:
+
+{
+  "experimentId": "EXP-10025",
+  "scenarioId": "MQ-TIMEOUT-001",
+  "target": {
+    "application": "ACH",
+    "service": "PrefundProcessor",
+    "environment": "CHAOS",
+    "cluster": "cluster-dc1",
+    "dataCenter": "DC1"
+  },
+  "condition": {
+    "stage": "MQ_PUBLISH",
+    "dependency": "IBM_MQ"
+  },
+  "fault": {
+    "type": "TIMEOUT",
+    "durationMs": 10000
+  },
+  "limits": {
+    "maxOccurrences": 5,
+    "maxDurationSeconds": 300
+  }
+}
+
+The .NET and Spring SDKs interpret the same contract.
+
+⸻
+
+SDK design
+
+I would create two official libraries:
+
+.NET
+
+Company.Chaos.Core
+Company.Chaos.AspNetCore
+Company.Chaos.Messaging
+Company.Chaos.Database
+Company.Chaos.Storage
+Company.Chaos.Kubernetes
+
+Usage could be as simple as:
+
+await chaos.CheckpointAsync(
+    "MQ_PUBLISH",
+    context);
+
+or:
+
+await chaos.BeforeAsync(
+    ChaosPoint.MqPublish,
+    context);
+
+Spring Boot
+
+Create:
+
+company-chaos-core
+company-chaos-spring-boot-starter
+company-chaos-messaging
+company-chaos-kafka
+company-chaos-db
+company-chaos-storage
+
+Then applications could use:
+
+chaos.checkpoint(
+    "MQ_PUBLISH",
+    context
+);
+
+Ideally Spring applications should require minimal code changes, using:
+
+* Spring interceptors
+* AOP
+* filters
+* Kafka interceptors
+* JDBC/DataSource wrappers
+* JMS/MQ wrappers
+* HTTP client interceptors
+
+where appropriate.
+
+⸻
+
+Even better: three levels of injection
+
+I recommend designing the generalized platform around three injection levels.
+
+Level 1 — Application checkpoint
+
+Business operation
+      ↓
+Chaos SDK
+      ↓
+Evaluate
+      ↓
+Inject
+
+Examples:
+
+FILE_PARSE
+DB_INSERT
+MQ_PUBLISH
+MQ_RESPONSE
+KAFKA_PUBLISH
+KAFKA_CONSUME
+SETTLEMENT_MATCH
+FILE_WRITE
+
+Level 2 — Infrastructure adapter
+
+Application
+     ↓
+Chaos-aware adapter
+     ↓
+Real dependency
+
+Examples:
+
+ChaosAwareHttpClient
+ChaosAwareKafkaProducer
+ChaosAwareMqClient
+ChaosAwareDbClient
+ChaosAwareFileStorage
+
+This is ideal for dependency failures.
+
+Level 3 — Kubernetes/OpenShift
+
+Chaos API
+     ↓
+Kubernetes Adapter
+     ↓
+Pod
+
+For example:
+
+Restart:
+ACH-Prefund-Worker
+DC1
+Pod #2
+
+This is independent of .NET/Spring.
+
+⸻
+
+The generalized platform then becomes
+
+                    CHAOS PLATFORM
+                          │
+              ┌───────────┴───────────┐
+              │                       │
+              ▼                       ▼
+         Application                 Pod
+          Injection                Injection
+              │                       │
+       ┌──────┴──────┐                │
+       │             │                │
+       ▼             ▼                ▼
+     .NET          Spring          Kubernetes
+       │             │
+       ▼             ▼
+     Chaos SDK     Chaos SDK
+       │             │
+       └──────┬──────┘
+              │
+              ▼
+       Common Chaos API
+
+This makes the UI completely unaware of whether the target is .NET or Spring.
+
+⸻
+
+Target registration
+
+Have applications register themselves with the Chaos platform.
+
+For example:
+
+Application:
+ACH
+Technology:
+DOTNET
+Version:
+8.x
+Environment:
+CHAOS
+Cluster:
+OpenShift-DC1
+Capabilities:
+HTTP
+BACKGROUND_SERVICE
+POSTGRES
+IBM_MQ
+KAFKA
+NFS
+
+Spring:
+
+Application:
+PaymentService
+Technology:
+SPRING_BOOT
+Capabilities:
+HTTP
+KAFKA
+IBM_MQ
+POSTGRES
+
+The UI can then dynamically show only capabilities supported by that application.
+
+⸻
+
+This also solves your simulator requirement
+
+The simulator can become completely generic:
+
+                 Create Experiment
+                        │
+                        ▼
+                 Select Application
+                        │
+             ┌──────────┴──────────┐
+             ▼                     ▼
+           .NET                  Spring
+             │                     │
+             └──────────┬──────────┘
+                        ▼
+                  Select Capability
+                        │
+             ┌──────────┼──────────┐
+             ▼          ▼          ▼
+            API        Kafka       MQ
+                        │
+                        ▼
+                   Select Fault
+                        │
+                        ▼
+                   Set Condition
+                        │
+                        ▼
+                  Set Blast Radius
+                        │
+                        ▼
+                     Dry Run
+                        │
+                        ▼
+                     Execute
+                        │
+                        ▼
+                    Observe
+                        │
+                        ▼
+                    Validate
+                        │
+                        ▼
+                 PASS / FAIL
+
+The UI doesn’t need separate .NET Chaos and Spring Chaos screens.
+
+⸻
+
+I would make one further architectural improvement
+
+Instead of naming the component Chaos Monkey, use something like:
+
+Enterprise Chaos Platform
+
+with these components:
+
+Chaos Control Plane
+Chaos Management API
+Chaos SDK
+Chaos Agent
+Chaos Execution Engine
+Chaos Adapter
+Chaos Simulator
+Chaos Assertion Engine
+Chaos Reporter
+
+Then the SDK becomes reusable across your organization.
+
+For example:
+
+             Enterprise Chaos Platform
+                       │
+        ┌──────────────┼──────────────┐
+        │              │              │
+       .NET          Spring        Kubernetes
+        │              │              │
+       SDK            SDK           Adapter
+        │              │
+        └───────┬──────┘
+                │
+          Common Contract
+                │
+        ┌───────┼────────┐
+        ▼       ▼        ▼
+       MQ     Kafka     DB
+
+The most important design rule: the application should never depend synchronously on the Chaos Control Plane for normal processing. The SDK should cache the active experiment configuration locally, fail open when Chaos is unavailable, and report injection results asynchronously. That gives you a reusable platform without introducing a new production dependency into your ACH transaction path.
