@@ -1,0 +1,1392 @@
+Absolutely. I would add a phased implementation plan so the coding agent builds this incrementally rather than attempting the entire framework at once.
+
+Add the following as Section 57 to the existing prompt:
+
+57. Phased Implementation Plan
+
+Implement the Chaos Engineering capability incrementally. Do not build all functionality in a single phase.
+
+Each phase must produce a working, testable increment and must not break the normal ACH application flow.
+
+⸻
+
+Phase 0 — Architecture, Safety and Baseline
+
+Objective
+
+Establish the architecture, safety model, contracts, and baseline observability before introducing any actual fault injection.
+
+Deliverables
+
+Create:
+
+Chaos/
+  Abstractions/
+  Core/
+  Configuration/
+  Persistence/
+  API/
+  Reporting/
+  Faults/
+  Dependencies/
+  Kubernetes/
+
+Implement:
+
+IChaosEngine
+IChaosConfigurationProvider
+IChaosSafetyGuard
+IChaosExecutionManager
+IChaosAssertionEngine
+IChaosReportService
+
+Create initial database schema:
+
+chaos_scenario
+chaos_rule
+chaos_experiment
+chaos_execution
+chaos_execution_step
+chaos_injection_event
+chaos_assertion
+chaos_assertion_result
+chaos_audit
+chaos_configuration_version
+chaos_safety_policy
+
+Implement:
+
+* Global chaos enable/disable
+* Environment restrictions
+* RBAC
+* Experiment expiration
+* Maximum duration
+* Maximum injection count
+* Maximum blast radius
+* Audit logging
+* Correlation ID propagation
+* OpenTelemetry integration
+
+Important
+
+At the end of Phase 0:
+
+Chaos enabled = FALSE
+
+The application must behave exactly as before.
+
+Acceptance Criteria
+
+* Application starts normally.
+* No chaos configuration causes application failure.
+* Chaos disabled has negligible overhead.
+* Global kill switch works.
+* Unsafe experiment cannot be created.
+* All configuration changes are audited.
+
+⸻
+
+Phase 1 — Dynamic Configuration Engine
+
+Objective
+
+Build the dynamic configuration capability without injecting failures yet.
+
+Implement
+
+ChaosConfigurationProvider
+ChaosConfigurationCache
+ChaosConfigurationRefresher
+ChaosRuleEvaluator
+ChaosConditionEvaluator
+ChaosTargetMatcher
+
+Support:
+
+Scenario
+Rule
+Condition
+Target
+Fault
+Duration
+Probability
+MaximumOccurrences
+Environment
+DC
+Pod
+Service
+Worker
+ProcessingStage
+
+Implement configuration refresh without application restart.
+
+Example
+
+Scenario:
+CHAOS-MQ-001
+Environment:
+CHAOS
+DC:
+DC1
+Worker:
+PrefundFileProcessor
+Stage:
+MQ_PUBLISH
+Enabled:
+true
+
+Acceptance Criteria
+
+Simulator/API can:
+
+Create scenario
+Modify scenario
+Enable scenario
+Disable scenario
+Validate scenario
+Preview scenario
+
+But no fault is actually injected yet.
+
+⸻
+
+Phase 2 — Conditional Injection Framework
+
+Objective
+
+Implement the core runtime decision engine.
+
+Implement
+
+ChaosEngine.EvaluateAsync()
+ChaosDecision
+ChaosContext
+ChaosRuleEvaluator
+ChaosConditionEvaluator
+ChaosTargetMatcher
+
+Support:
+
+AND
+OR
+NOT
+==
+!=
+>
+<
+>=
+<=
+IN
+CONTAINS
+STARTS_WITH
+
+Support:
+
+TransactionId
+FileId
+BatchId
+CorrelationId
+Pod
+DC
+Worker
+Service
+Stage
+Dependency
+TransactionType
+Amount
+AttemptNumber
+RetryCount
+
+First Fault Types
+
+Implement only:
+
+Delay
+Exception
+Timeout
+
+Do not implement pod restart or message manipulation yet.
+
+Acceptance Criteria
+
+Test:
+
+Chaos disabled
+        -> no fault
+Condition false
+        -> no fault
+Condition true
+        -> fault
+MaximumOccurrences reached
+        -> no additional fault
+Duration expired
+        -> no fault
+Global kill switch
+        -> no fault
+
+⸻
+
+Phase 3 — API Fault Injection
+
+Objective
+
+Add chaos to ASP.NET Core API processing.
+
+Injection Points
+
+Implement:
+
+Middleware
+Controller
+Request pipeline
+Response pipeline
+HTTP client
+
+Support:
+
+Artificial latency
+HTTP 500
+HTTP 503
+Timeout
+Exception
+Request cancellation
+
+Example Experiment
+
+Target:
+POST /api/prefund
+Condition:
+Transaction amount > 100000
+Fault:
+5 second delay
+Maximum:
+10 requests
+
+Acceptance Criteria
+
+Verify:
+
+* API returns expected failure.
+* Error model remains correct.
+* Correlation ID survives.
+* Trace survives.
+* Chaos event is recorded.
+* Normal requests continue unaffected.
+* Fault automatically expires.
+
+⸻
+
+Phase 4 — Background Worker Injection
+
+Objective
+
+Integrate chaos into the ACH processing workers.
+
+Add checkpoints to:
+
+FileIntakeWorker
+PrefundFileProcessor
+SettlementFileProcessor
+OutboxPublisher
+MQResponseProcessor
+KafkaConsumer
+KafkaProducer
+RetryProcessor
+ReconciliationProcessor
+ResponseFileGenerator
+
+Implement checkpoints:
+
+FILE_DISCOVERY
+FILE_REGISTRATION
+FILE_CHECKSUM
+FILE_DUPLICATE_CHECK
+FILE_PARSING
+FILE_VALIDATION
+DATABASE_INSERT
+OUTBOX_CREATION
+MQ_PUBLISH
+MQ_RESPONSE
+PREFUND_RESERVATION
+SETTLEMENT_MATCH
+SETTLEMENT_UPDATE
+RESPONSE_FILE_GENERATION
+RESPONSE_FILE_WRITE
+
+Acceptance Criteria
+
+For every checkpoint:
+
+Chaos OFF
+    -> normal processing
+Chaos ON + condition false
+    -> normal processing
+Chaos ON + condition true
+    -> expected fault
+
+Verify graceful cancellation during pod shutdown.
+
+⸻
+
+Phase 5 — PostgreSQL Application-Boundary Chaos
+
+Objective
+
+Test PostgreSQL failure behavior without touching PostgreSQL infrastructure.
+
+Implement
+
+ChaosAwareDbClient
+ChaosAwareDbConnection
+ChaosAwareDbCommand
+
+Support:
+
+Connection failure
+Connection timeout
+Command timeout
+Artificial latency
+Transaction timeout
+Deadlock simulation
+Concurrency exception
+Serialization exception
+Query cancellation
+Commit failure simulation
+
+Priority Experiments
+
+DB-001
+
+Inject 5-second database latency.
+
+DB-002
+
+Inject connection timeout.
+
+DB-003
+
+Inject transient database failure.
+
+DB-004
+
+Inject failure after business data is persisted but before completion state update.
+
+Acceptance Criteria
+
+Verify:
+
+Rollback works
+Retry works
+No partial transaction
+No duplicate transaction
+No lost file
+Correct error code
+Correct audit record
+Correct reconciliation
+
+Do not physically restart or disrupt PostgreSQL.
+
+⸻
+
+Phase 6 — IBM MQ Application-Boundary Chaos
+
+Objective
+
+Test IBM MQ failure behavior without restarting or modifying MQ infrastructure.
+
+Implement
+
+ChaosAwareMqClient
+
+Add injection points:
+
+BeforeSend
+AfterSend
+BeforeReceive
+AfterReceive
+
+Support:
+
+Connection failure
+Connection timeout
+Send timeout
+Receive timeout
+Response delay
+Message drop
+Message duplicate
+Malformed response
+Invalid correlation ID
+Unexpected response
+
+Critical Experiment
+
+DB COMMIT
+    |
+    v
+OUTBOX CREATED
+    |
+    v
+MQ PUBLISH
+    |
+    X
+CHAOS: MQ TIMEOUT
+
+Expected:
+
+Outbox remains recoverable.
+Retry occurs.
+MQ eventually receives message.
+Business operation happens once.
+
+Second Critical Experiment
+
+MQ PUBLISH
+    |
+    v
+MESSAGE SENT
+    |
+    X
+POD CRASH
+    |
+    v
+RESTART
+
+Expected:
+
+Possible duplicate MQ message
+BUT
+no duplicate financial business effect.
+
+Acceptance Criteria
+
+Prove:
+
+No lost reservation
+No duplicate reservation
+Correct retry
+Correct idempotency
+Correct correlation
+Correct audit
+
+⸻
+
+Phase 7 — Kafka Application-Boundary Chaos
+
+Objective
+
+Test Kafka producer/consumer behavior without restarting or modifying Kafka infrastructure.
+
+Implement
+
+ChaosAwareKafkaProducer
+ChaosAwareKafkaConsumer
+ChaosAwareKafkaHandler
+
+Support:
+
+Publish delay
+Publish timeout
+Publish failure
+Message drop
+Message duplicate
+Consumer delay
+Consumer exception
+Deserialization failure
+Commit failure simulation
+Consumer cancellation
+Artificial lag
+
+Critical Experiment
+
+Kafka message
+      |
+      v
+Consumer
+      |
+      +---- duplicate
+      |
+      v
+Business processing
+
+Expected:
+
+Message may be delivered twice.
+Business effect occurs once.
+
+Acceptance Criteria
+
+Verify:
+
+* Consumer recovery.
+* Retry.
+* Idempotency.
+* No duplicate business processing.
+* Correct offset handling.
+* Correct audit.
+* Correct trace correlation.
+
+⸻
+
+Phase 8 — File and Storage Chaos
+
+Objective
+
+Test NFS/S3 and file processing behavior.
+
+Do not physically damage production storage.
+
+Inject at the storage abstraction.
+
+Implement:
+
+ChaosAwareFileStorage
+
+Support:
+
+Read failure
+Write failure
+Read delay
+Write delay
+File not found
+Permission failure
+Partial file
+Checksum failure
+Rename failure
+Atomic move failure
+Storage unavailable
+
+Critical Scenarios
+
+File arrives
+    |
+    v
+Registration
+    |
+    X
+Storage becomes unavailable
+
+Expected:
+
+File remains recoverable.
+Worker does not busy-loop.
+Retry occurs.
+
+Second:
+
+Output file generated
+       |
+       X
+Write fails
+
+Expected:
+
+File is NOT marked SENT.
+No incomplete final file.
+Retry is possible.
+
+⸻
+
+Phase 9 — Outbox and Failure-Window Chaos
+
+Objective
+
+Test the most important financial consistency failure windows.
+
+Implement precise injection checkpoints:
+
+AFTER_DB_COMMIT
+BEFORE_OUTBOX_CREATE
+AFTER_OUTBOX_CREATE
+BEFORE_MQ_PUBLISH
+AFTER_MQ_PUBLISH
+BEFORE_KAFKA_PUBLISH
+AFTER_KAFKA_PUBLISH
+BEFORE_STATUS_UPDATE
+AFTER_STATUS_UPDATE
+
+Experiment A
+
+DB COMMIT
+    |
+    X CHAOS
+    |
+    v
+PROCESS CRASH
+
+Expected:
+
+DB data exists.
+Outbox/work state is recoverable.
+No lost transaction.
+
+Experiment B
+
+MQ PUBLISH
+    |
+    X CHAOS
+    |
+    v
+PROCESS CRASH
+
+Expected:
+
+Duplicate message may occur.
+Business idempotency prevents duplicate financial effect.
+
+Experiment C
+
+Output file written
+    |
+    X CHAOS
+    |
+    v
+Process crash
+
+Expected:
+
+Outbound delivery state reconciles.
+No duplicate final file.
+No incomplete file treated as complete.
+
+This phase is a P0 priority for the ACH platform.
+
+⸻
+
+Phase 10 — Pod-Level Chaos
+
+Objective
+
+Introduce controlled Kubernetes/OpenShift pod failures.
+
+Only application pods may be manipulated.
+
+Do not manipulate:
+
+PostgreSQL
+Kafka
+IBM MQ
+
+Implement:
+
+KubernetesChaosClient
+PodRestartManager
+
+Support:
+
+Delete one pod
+Graceful termination
+Forced termination
+Scale deployment
+
+Safety
+
+Enforce:
+
+Maximum pods affected
+Maximum percentage
+Namespace allow-list
+Environment allow-list
+Expiration
+RBAC
+Approval
+
+First Experiment
+
+Submit prefund file
+        |
+        v
+Persist transactions
+        |
+        v
+Restart one Prefund worker pod
+        |
+        v
+Another pod recovers work
+
+Acceptance Criteria
+
+Verify:
+
+No lost file
+No lost transaction
+No duplicate reservation
+No duplicate MQ request effect
+Worker becomes healthy
+Recovery completes
+
+⸻
+
+Phase 11 — Simulator
+
+Objective
+
+Create the operator-facing Chaos Simulator.
+
+Implement screens:
+
+Scenario Library
+Scenario Builder
+Experiment Preview
+Experiment Execution
+Live Monitoring
+Experiment History
+Experiment Report
+
+Scenario Builder
+
+Allow the operator to configure:
+
+Target
+Environment
+DC
+Cluster
+Service
+Worker
+Stage
+Dependency
+Condition
+Fault
+Probability
+Duration
+Maximum Occurrences
+Blast Radius
+Expected Result
+
+Preview
+
+Before execution:
+
+Target:
+DC1 / PrefundFileProcessor
+Fault:
+IBM MQ timeout
+Condition:
+MQ_PUBLISH
+Maximum:
+5 transactions
+Duration:
+5 minutes
+Expected:
+Outbox recovery
+
+Require explicit confirmation.
+
+⸻
+
+Phase 12 — Live Experiment Dashboard
+
+Objective
+
+Provide real-time experiment visibility.
+
+Dashboard sections:
+
+Experiment
+
+Experiment ID
+Scenario
+Status
+Operator
+Start time
+Duration
+Environment
+DC
+Cluster
+
+Configuration
+
+Target
+Condition
+Fault
+Blast radius
+Expected result
+
+Execution
+
+Injection attempts
+Injected
+Skipped
+Failed
+Recovered
+Active
+
+ACH Business Impact
+
+Prefund files
+Prefund transactions
+Settlement files
+Settlement transactions
+Successful
+Pending
+Failed
+Retried
+Reconciled
+Duplicate prevented
+
+Dependencies
+
+PostgreSQL
+Kafka
+IBM MQ
+Storage
+
+Show:
+
+Healthy
+Affected
+Recovering
+Recovered
+
+⸻
+
+Phase 13 — Automated Assertions and Recovery
+
+Objective
+
+Make experiments automatically determine whether resilience requirements were met.
+
+Implement:
+
+IChaosAssertionEngine
+
+Support assertions:
+
+NoLostFiles
+NoLostTransactions
+NoDuplicateTransactions
+NoDuplicateReservations
+NoDuplicateSettlements
+NoDuplicateOutgoingFiles
+OutboxRecovered
+RetryCompleted
+PodRecovered
+StorageRecovered
+KafkaRecovered
+MQRecovered
+SettlementRecovered
+ReconciliationCompleted
+
+Each assertion returns:
+
+PASS
+FAIL
+NOT_VERIFIABLE
+
+Recovery SLA
+
+Support:
+
+ExpectedRecoverySeconds
+
+Example:
+
+Expected:
+<= 60 sec
+Actual:
+23 sec
+PASS
+
+⸻
+
+Phase 14 — Multi-Step Chaos Experiments
+
+Objective
+
+Support realistic compound failures.
+
+Example:
+
+STEP 1
+Inject PostgreSQL latency
+WAIT 20 seconds
+STEP 2
+Restart one Prefund pod
+WAIT 10 seconds
+STEP 3
+Inject IBM MQ timeout
+WAIT 30 seconds
+STEP 4
+Disable chaos
+STEP 5
+Run recovery assertions
+
+Support:
+
+Sequential steps
+Parallel steps
+Wait conditions
+Duration
+Dependency conditions
+Recovery gates
+Assertions
+
+Each step must have independent execution state.
+
+⸻
+
+Phase 15 — Multi-DC Chaos
+
+Objective
+
+Validate active-active/multi-DC resilience.
+
+Scenarios:
+
+DC1 pod failure
+DC2 pod failure
+DC1 storage unavailable
+DC2 storage unavailable
+DC1 application unavailable
+DC2 application unavailable
+DC1 network isolation
+Cross-DC work recovery
+Simultaneous processing attempt
+
+Critical Test
+
+                 DC1
+                  |
+             Transaction
+                  |
+               CLAIMED
+                  |
+              POD FAIL
+                  |
+                  v
+                 DC2
+                  |
+               RECLAIM
+                  |
+                  v
+              PROCESS
+
+Verify:
+
+No duplicate reservation
+No duplicate settlement
+No duplicate outgoing file
+No lost transaction
+
+⸻
+
+Phase 16 — End-to-End ACH Chaos Suite
+
+Create a standardized regression suite.
+
+E2E-001
+
+Prefund success
+
+E2E-002
+
+Pod failure during prefund
+
+E2E-003
+
+PostgreSQL timeout during prefund
+
+E2E-004
+
+MQ timeout during reservation
+
+E2E-005
+
+MQ response delayed
+
+E2E-006
+
+Kafka duplicate
+
+E2E-007
+
+Settlement arrives before prefund completion
+
+E2E-008
+
+Settlement amount mismatch
+
+E2E-009
+
+Output file write failure
+
+E2E-010
+
+DC1 pod failure → DC2 recovery
+
+E2E-011
+
+Pod failure after DB commit
+
+E2E-012
+
+Pod failure after MQ publish
+
+⸻
+
+Phase 17 — Reporting and Evidence
+
+Objective
+
+Make every chaos experiment produce evidence suitable for engineering, operations, and audit review.
+
+Generate:
+
+Experiment Summary
+Input Configuration
+Execution Timeline
+Fault Injection Events
+Affected Components
+Affected Files
+Affected Transactions
+Dependency Behavior
+Retry Behavior
+Recovery
+Assertions
+Business Impact
+Final Result
+
+Include:
+
+Experiment ID
+Scenario ID
+Configuration Version
+Correlation IDs
+Trace IDs
+Pod IDs
+DC
+Cluster
+Timestamp
+Operator
+
+Provide:
+
+PASS
+FAIL
+PARTIAL
+ABORTED
+EXPIRED
+
+Allow report export.
+
+⸻
+
+Phase 18 — Automated CI/CD Chaos Testing
+
+Integrate safe chaos scenarios into CI/CD.
+
+Pull Request / Build
+
+Run:
+
+Unit tests
+Chaos engine tests
+Condition evaluator tests
+Safety tests
+
+Integration Environment
+
+Run:
+
+DB timeout
+MQ timeout
+Kafka duplicate
+File failure
+Outbox failure
+
+Chaos Environment
+
+Run:
+
+Pod restart
+Multi-worker recovery
+Multi-DC simulation
+E2E recovery
+
+Do not automatically run destructive experiments against production.
+
+⸻
+
+Phase 19 — Performance and Overhead Validation
+
+Measure the application with:
+
+Chaos disabled
+
+against:
+
+Chaos enabled but no rule matched
+
+against:
+
+Chaos actively injecting faults
+
+Measure:
+
+CPU
+Memory
+GC
+ThreadPool
+Latency
+Throughput
+DB connections
+Kafka connections
+MQ connections
+Configuration refresh
+
+Target:
+
+Chaos disabled:
+<1% measurable application overhead
+
+Also verify that chaos configuration caching does not create excessive database load.
+
+⸻
+
+Phase 20 — Production Readiness
+
+Before production approval, verify:
+
+Safety
+
+Global kill switch
+RBAC
+Namespace allow-list
+Environment allow-list
+Maximum blast radius
+Maximum duration
+Automatic expiration
+Audit
+Approval
+
+Reliability
+
+No lost transactions
+No duplicate financial effects
+Correct retry
+Correct idempotency
+Correct reconciliation
+Correct multi-DC behavior
+
+Observability
+
+Logs
+Metrics
+Traces
+Correlation IDs
+Experiment timeline
+Business impact
+Recovery metrics
+
+Security
+
+No secrets in configuration
+No sensitive payment data in logs
+Least-privilege Kubernetes access
+No arbitrary code execution
+No arbitrary expression execution
+
+⸻
+
+58. Recommended Delivery Sequence
+
+The implementation should be delivered in the following order:
+
+Phase 0
+Architecture + Safety
+       |
+       v
+Phase 1
+Dynamic Configuration
+       |
+       v
+Phase 2
+Conditional Engine
+       |
+       v
+Phase 3
+API Injection
+       |
+       v
+Phase 4
+Background Worker Injection
+       |
+       v
+Phase 5
+PostgreSQL Boundary
+       |
+       v
+Phase 6
+IBM MQ Boundary
+       |
+       v
+Phase 7
+Kafka Boundary
+       |
+       v
+Phase 8
+File/Storage Boundary
+       |
+       v
+Phase 9
+Outbox Failure Windows
+       |
+       v
+Phase 10
+Pod Chaos
+       |
+       v
+Phase 11
+Simulator
+       |
+       v
+Phase 12
+Live Dashboard
+       |
+       v
+Phase 13
+Assertions + Recovery
+       |
+       v
+Phase 14
+Multi-Step Experiments
+       |
+       v
+Phase 15
+Multi-DC
+       |
+       v
+Phase 16
+E2E Chaos Suite
+       |
+       v
+Phase 17
+Reporting
+       |
+       v
+Phase 18
+CI/CD
+       |
+       v
+Phase 19
+Performance
+       |
+       v
+Phase 20
+Production Readiness
+
+⸻
+
+59. Phase Exit Criteria
+
+Do not proceed to the next phase until the current phase has:
+
+Implementation complete
+Unit tests complete
+Integration tests complete
+Security review complete
+Observability verified
+Failure behavior verified
+Documentation updated
+Acceptance criteria passed
+
+Each phase should produce:
+
+1. Source code
+2. Database migration
+3. Unit tests
+4. Integration tests
+5. API documentation
+6. Configuration examples
+7. Simulator changes where applicable
+8. Dashboard changes where applicable
+9. Observability changes
+10. Test evidence
+
+⸻
+
+60. Recommended MVP Scope
+
+Do not wait for all 20 phases before demonstrating value.
+
+The first usable MVP should contain:
+
+Phase 0
+Phase 1
+Phase 2
+Phase 4
+Phase 5
+Phase 6
+Phase 7
+Phase 9
+Phase 10
+Phase 11
+Phase 12
+Phase 13
+
+The MVP should demonstrate these four critical experiments:
+
+MVP Experiment 1
+
+Restart one Prefund pod
+        +
+verify transaction recovery
+
+MVP Experiment 2
+
+Inject PostgreSQL timeout
+        +
+verify retry/recovery
+
+MVP Experiment 3
+
+Inject IBM MQ timeout
+        +
+verify outbox recovery
+        +
+verify no duplicate reservation
+
+MVP Experiment 4
+
+Inject Kafka duplicate
+        +
+verify idempotent business processing
+
+The simulator must show:
+
+INPUT
+   ↓
+CHAOS INJECTION
+   ↓
+APPLICATION BEHAVIOR
+   ↓
+RECOVERY
+   ↓
+BUSINESS RESULT
+   ↓
+PASS / FAIL
+
+⸻
+
+61. Final Implementation Principle
+
+Build this framework as a controlled resilience testing platform, not merely a failure generator.
+
+Every experiment must answer five questions:
+
+1. What failure did we inject?
+2. Where did we inject it?
+3. What did the application do?
+4. Did the system recover correctly?
+5. Did the ACH business outcome remain correct?
+
+The ultimate success criterion is not:
+
+“The pod restarted.”
+
+It is:
+
+“The pod restarted, the work was recovered, the MQ/Kafka/database interactions remained consistent, no financial business effect was duplicated or lost, settlement completed correctly, and the system produced evidence proving the recovery.”
+
+This phased implementation must therefore prioritize financial correctness, idempotency, recovery, observability, safety, and auditability over the number of chaos fault types supported.
+
+One architectural recommendation: make Phases 5–10 the highest-priority engineering work. For your application, the most valuable chaos tests aren’t random CPU/memory failures—they’re the precise failure windows around Postgres commit → outbox → IBM MQ/Kafka → pod crash → retry → idempotent business completion. Those are the tests that prove the ACH processing design is actually resilient.
