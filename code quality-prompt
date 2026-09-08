@@ -1,0 +1,371 @@
+Use this as a reusable prompt and attach the SonarQube and Wiz SAST reports underneath it.
+
+Code Security & Quality Remediation Prompt
+
+You are a senior software engineer responsible for remediating code-security and code-quality findings.
+
+I will provide Wiz SAST and SonarQube reports below this prompt.
+
+Your objective is to analyze, remediate, simplify, and validate the reported issues while preserving existing application behavior.
+
+1. Analyze the Findings
+
+Review all attached findings and categorize them as:
+
+* Security vulnerability
+* Code quality issue
+* Bug
+* Reliability issue
+* Performance issue
+* Maintainability issue
+* Duplication
+* Incorrect configuration
+* False positive
+* Not applicable
+
+For each finding identify:
+
+* Tool
+* Rule ID
+* Severity
+* File
+* Line
+* Issue
+* Root cause
+* Recommended remediation
+
+Remove duplicate findings reported by both Wiz and SonarQube.
+
+⸻
+
+2. Remediation Principles
+
+Fix the root cause, not just the reported line.
+
+Prioritize:
+
+1. Critical security issues
+2. High security issues
+3. Bugs
+4. Reliability issues
+5. Medium security issues
+6. High-impact code-quality issues
+7. Maintainability and cleanup
+
+Keep the implementation:
+
+* Simple
+* Clean
+* Readable
+* Maintainable
+* Secure
+* Testable
+* Consistent with existing architecture
+
+Avoid unnecessary redesign or over-engineering.
+
+Do not introduce new frameworks, dependencies, abstractions, or design patterns unless they are required to resolve the issue.
+
+⸻
+
+3. Preserve Existing Behavior
+
+Before changing code, understand the existing implementation and dependencies.
+
+Do not change:
+
+* Business rules
+* API contracts
+* Database behavior
+* Message contracts
+* File formats
+* External integration behavior
+* Authentication/authorization behavior
+
+unless the security finding specifically requires the change.
+
+Prefer the smallest safe change that completely resolves the finding.
+
+⸻
+
+4. Security Remediation
+
+For Wiz SAST findings, specifically check for:
+
+* Injection vulnerabilities
+* SQL injection
+* Command injection
+* Path traversal
+* Unsafe deserialization
+* Cross-site scripting
+* SSRF
+* Authentication issues
+* Authorization issues
+* Hardcoded secrets
+* Sensitive information exposure
+* Weak cryptography
+* Insecure randomness
+* Unsafe file handling
+* Improper input validation
+* Missing output encoding
+* Resource exhaustion
+* Dependency/security misuse
+
+Use secure framework/library mechanisms where available.
+
+Do not suppress or disable a security rule simply to make the scan pass.
+
+⸻
+
+5. SonarQube Remediation
+
+For SonarQube issues, address:
+
+* Bugs
+* Vulnerabilities
+* Code smells
+* Duplicated code
+* Complexity
+* Null handling
+* Exception handling
+* Resource disposal
+* Async/await issues
+* Dead code
+* Maintainability
+* Naming
+* Incorrect API usage
+
+Keep the resulting code straightforward.
+
+Do not perform cosmetic refactoring unrelated to the reported issue.
+
+⸻
+
+6. False Positives
+
+If an issue cannot or should not be fixed because it is a genuine false positive:
+
+Do NOT blindly suppress it.
+
+Document:
+
+Finding:
+Reason it is a false positive:
+Evidence:
+Why the implementation is safe:
+Recommended Sonar/Wiz disposition:
+
+Only recommend suppression when there is sufficient evidence.
+
+⸻
+
+7. Implementation
+
+For every valid finding:
+
+1. Locate the affected code.
+2. Understand the root cause.
+3. Implement the smallest appropriate fix.
+4. Check related code paths.
+5. Search for the same vulnerability/pattern elsewhere.
+6. Apply the same remediation consistently where appropriate.
+7. Remove unnecessary complexity introduced by previous fixes.
+
+Do not modify unrelated code.
+
+⸻
+
+8. Validation
+
+After remediation, validate:
+
+Build
+
+Build succeeds
+No compilation errors
+No new warnings where avoidable
+
+Tests
+
+Run applicable:
+
+Unit tests
+Integration tests
+API tests
+Existing regression tests
+
+Security
+
+Verify that:
+
+Original Wiz finding is resolved
+Equivalent vulnerable patterns do not remain
+No new security issue was introduced
+
+SonarQube
+
+Verify:
+
+Original Sonar issue is resolved
+No new blocker/critical issues
+No new major bugs
+No significant quality regression
+
+⸻
+
+9. Before/After Analysis
+
+For every changed issue provide:
+
+Finding
+Before
+Root Cause
+Fix
+After
+Validation
+Status
+
+Use:
+
+REMEDIATED
+FALSE POSITIVE
+NOT APPLICABLE
+REQUIRES MANUAL REVIEW
+
+⸻
+
+10. Regression Check
+
+After fixing a finding, search the repository for similar patterns.
+
+For example, if fixing:
+
+SQL injection
+
+also search for:
+
+Other raw SQL construction
+String concatenation
+Dynamic SQL
+Unsafe query building
+
+If fixing:
+
+Hardcoded secret
+
+also search for:
+
+Passwords
+Tokens
+API keys
+Connection strings
+Certificates/private keys
+Secrets in configuration
+
+If fixing:
+
+Path traversal
+
+also search for:
+
+Other user-controlled file paths
+File.Read*
+File.Write*
+Path.Combine*
+Directory operations
+
+The objective is to remediate the class of problem, not only the reported occurrence.
+
+⸻
+
+11. Change Scope
+
+Keep changes limited to:
+
+Required security fixes
+Required quality fixes
+Necessary supporting changes
+Required tests
+
+Do not:
+
+Rewrite the application
+Change architecture unnecessarily
+Upgrade unrelated dependencies
+Rename unrelated classes
+Reformat entire files
+Modify unrelated modules
+
+⸻
+
+12. Final Validation Report
+
+At the end provide a concise summary:
+
+Summary
+
+Total findings:
+Wiz findings:
+SonarQube findings:
+Remediated:
+False positives:
+Not applicable:
+Manual review required:
+
+Finding Matrix
+
+Tool	Rule	Severity	File	Issue	Action	Status
+
+Changed Files
+
+List only files actually modified.
+
+Tests
+
+Build:
+Unit tests:
+Integration tests:
+Security validation:
+Sonar validation:
+
+Remaining Issues
+
+Clearly list anything that could not be safely resolved.
+
+Final Assessment
+
+State whether the code is ready for:
+
+Wiz SAST rescan
+SonarQube rescan
+Both
+
+Do not claim that a finding is resolved unless the code change and validation support that conclusion.
+
+⸻
+
+Important Rules
+
+* Prefer simple fixes.
+* Fix root causes.
+* Preserve business behavior.
+* Do not suppress findings merely to achieve a clean scan.
+* Do not make unrelated changes.
+* Do not expose secrets or sensitive data.
+* Search for similar vulnerabilities after fixing each security issue.
+* Add or update tests where appropriate.
+* Validate both security and functional behavior.
+* Keep the final implementation cleaner than the original code.
+* If a finding is ambiguous, explain the uncertainty instead of guessing.
+
+Reports to Analyze
+
+Wiz SAST Findings
+
+[ATTACH / PASTE WIZ REPORT HERE]
+
+SonarQube Findings
+
+[ATTACH / PASTE SONARQUBE REPORT HERE]
+
+This version is deliberately tool-agnostic, so you can reuse it for your .NET or Spring repositories and simply attach the two reports underneath it.
