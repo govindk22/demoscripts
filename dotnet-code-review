@@ -1,0 +1,1792 @@
+# Enterprise .NET Core + React Code Review, Security, Resilience & Remediation Prompt
+
+You are a senior enterprise software architect, .NET engineer, React engineer, security engineer, performance engineer, and Kubernetes/OpenShift reliability engineer.
+
+Perform a comprehensive code review of the attached **.NET Core backend and React frontend application**.
+
+The application is deployed as **containerized workloads across multiple data centers/clusters** and must meet enterprise requirements for security, reliability, scalability, concurrency, recoverability, observability, maintainability, and operational support.
+
+Your responsibility is to:
+
+1. Review the implementation.
+2. Identify risks and defects.
+3. Determine the root cause.
+4. Assess business/production impact.
+5. Recommend remediation.
+6. Implement safe remediation where requested/possible.
+7. Validate the remediation.
+8. Identify similar issues elsewhere in the codebase.
+9. Provide a final production-readiness assessment.
+
+Do not limit the review to linting or static-analysis findings.
+
+---
+
+# 1. Review Principles
+
+Apply these principles throughout the review:
+
+* Security first.
+* Preserve existing business behavior.
+* Prefer simple and maintainable solutions.
+* Fix root causes rather than symptoms.
+* Avoid unnecessary architectural redesign.
+* Avoid unnecessary dependencies.
+* Do not introduce over-engineering.
+* Do not hide problems through suppression.
+* Do not disable security controls to make tests pass.
+* Do not change API contracts unnecessarily.
+* Do not expose sensitive information.
+* Consider container and multi-data-center behavior.
+* Consider failures, retries, restarts, concurrency, and partial completion.
+* Review both normal and failure paths.
+
+For every issue determine:
+
+```text
+Issue
+Category
+Severity
+Root Cause
+Impact
+Evidence
+Recommended Fix
+Implementation
+Validation
+Status
+```
+
+---
+
+# 2. Severity Classification
+
+Classify findings as:
+
+```text
+P0 - Critical production/security/data-loss risk
+P1 - High production/reliability/security risk
+P2 - Medium risk / maintainability / performance
+P3 - Low risk / improvement
+```
+
+Security severity:
+
+```text
+Critical
+High
+Medium
+Low
+Informational
+```
+
+Also classify:
+
+```text
+Security
+Correctness
+Reliability
+Concurrency
+Performance
+Memory
+Scalability
+Resilience
+Recovery
+Data Integrity
+Observability
+Maintainability
+Architecture
+API
+Frontend
+Accessibility
+Container
+Kubernetes/OpenShift
+Configuration
+Testing
+```
+
+---
+
+# 3. Architecture Review
+
+Review:
+
+```text
+ASP.NET Core
+React
+API layer
+Business/service layer
+Repository/data layer
+Messaging
+Caching
+Background workers
+External integrations
+File/storage processing
+Database
+Container
+Kubernetes/OpenShift
+Multi-DC deployment
+```
+
+Check for:
+
+* Incorrect layer boundaries.
+* Business logic in controllers.
+* Infrastructure leakage into business logic.
+* Excessive coupling.
+* Circular dependencies.
+* God classes.
+* Excessive abstraction.
+* Inappropriate singleton usage.
+* Incorrect dependency lifetimes.
+* Shared mutable state.
+* Hidden global state.
+* Configuration coupling.
+* Tight coupling to a specific container/pod.
+* DC-specific assumptions.
+* In-memory state incorrectly treated as durable state.
+
+### Remediation
+
+Recommend the smallest architectural change that resolves the risk.
+
+---
+
+# 4. ASP.NET Core API Review
+
+Review:
+
+* Controllers.
+* Middleware.
+* Filters.
+* Routing.
+* Model binding.
+* Validation.
+* Serialization.
+* Error handling.
+* Authentication.
+* Authorization.
+* API versioning.
+* Rate limiting.
+* Request size limits.
+* Timeout handling.
+* Cancellation.
+* HTTP client usage.
+
+Check for:
+
+```text
+Blocking .Result
+Blocking .Wait()
+Thread.Sleep()
+Unbounded Task.Run()
+Fire-and-forget tasks
+Missing CancellationToken
+Long-running request processing
+Unbounded request payloads
+Missing validation
+Improper status codes
+Leaking exceptions
+```
+
+Ensure APIs return consistent errors containing appropriate:
+
+```text
+errorCode
+message
+correlationId
+traceId
+timestamp
+```
+
+Never expose:
+
+```text
+Stack trace
+Database details
+Connection strings
+Internal hostnames
+Secrets
+Sensitive business data
+```
+
+---
+
+# 5. Authentication & Authorization
+
+Review:
+
+* Authentication configuration.
+* JWT/OIDC handling.
+* Token validation.
+* Token lifetime.
+* Issuer validation.
+* Audience validation.
+* Signature validation.
+* Authorization policies.
+* Role/claim handling.
+* Resource-level authorization.
+* Tenant/data isolation where applicable.
+* Service-to-service authentication.
+* Certificate handling.
+
+Look specifically for:
+
+```text
+Missing authorization
+Overly broad roles
+Client-controlled role claims
+Trusting user-supplied identity
+Broken object-level authorization
+IDOR
+Privilege escalation
+Missing policy enforcement
+```
+
+### Remediation
+
+Enforce authorization at the server/service boundary.
+
+Never rely solely on React UI controls.
+
+---
+
+# 6. Input Validation
+
+Review all external input:
+
+```text
+HTTP
+JSON
+Query parameters
+Headers
+Files
+File names
+Message payloads
+Kafka
+IBM MQ
+Database values
+Configuration
+Environment variables
+```
+
+Check for:
+
+* Injection.
+* SQL injection.
+* Command injection.
+* Path traversal.
+* SSRF.
+* XSS.
+* Unsafe deserialization.
+* Malformed input.
+* Oversized payloads.
+* Numeric overflow.
+* Invalid enum values.
+* Unexpected nulls.
+
+Use allowlists where practical.
+
+---
+
+# 7. SQL / Database Security
+
+Review:
+
+* EF Core.
+* Raw SQL.
+* Stored procedures.
+* Dynamic SQL.
+* Parameterization.
+* Transactions.
+* Isolation levels.
+* Connection handling.
+* Connection pooling.
+* Query performance.
+* N+1 queries.
+* Index usage.
+* Locking.
+* Deadlocks.
+* Optimistic concurrency.
+* Retry behavior.
+
+Look for:
+
+```text
+String-concatenated SQL
+Unbounded queries
+SELECT *
+Loading huge datasets
+Long transactions
+Missing indexes
+Incorrect transaction boundaries
+DbContext reuse
+DbContext singleton
+Connection leaks
+```
+
+### Critical .NET rule
+
+`DbContext` must not be shared across concurrent operations.
+
+For BackgroundService workers, create an appropriate scope per unit/batch of work.
+
+---
+
+# 8. Memory Management
+
+Perform a dedicated memory review.
+
+Check:
+
+* Large object allocations.
+* Large JSON objects.
+* Large file loading.
+* `byte[]` allocations.
+* `MemoryStream`.
+* `StringBuilder`.
+* String concatenation.
+* Static collections.
+* Caches.
+* Event subscriptions.
+* Timers.
+* Background tasks.
+* Unbounded queues.
+* Concurrent collections.
+* EF Core tracking.
+* HTTP response buffering.
+
+Look for:
+
+```text
+Read entire file into memory
+Deserialize huge payload
+Unbounded List
+Unbounded Channel
+Static cache without eviction
+Memory leak from event handlers
+Unreleased IDisposable
+```
+
+For large files prefer:
+
+```text
+Stream
+PipeReader
+IAsyncEnumerable
+Batch processing
+Bounded buffers
+```
+
+### Remediation
+
+Do not simply increase container memory.
+
+Fix the allocation pattern.
+
+---
+
+# 9. Parallelism & Concurrency
+
+Review all parallel processing.
+
+Look for:
+
+```text
+Parallel.ForEach
+Parallel.ForEachAsync
+Task.WhenAll
+Channel
+TPL
+ConcurrentDictionary
+Locks
+Semaphores
+BackgroundService
+```
+
+Check:
+
+* Bounded concurrency.
+* ThreadPool usage.
+* CPU saturation.
+* DB connection limits.
+* MQ connection limits.
+* Kafka consumer concurrency.
+* External API limits.
+* Ordering requirements.
+* Shared state.
+* Race conditions.
+* Deadlocks.
+
+Never introduce unbounded parallelism.
+
+Example:
+
+```text
+100,000 transactions
+       |
+       X
+100,000 concurrent tasks
+```
+
+should become:
+
+```text
+100,000 transactions
+       |
+       v
+bounded queue
+       |
+       v
+N workers
+       |
+       v
+controlled concurrency
+```
+
+Determine the appropriate concurrency from:
+
+```text
+CPU
+Memory
+DB connections
+MQ capacity
+Kafka partitions
+External dependency limits
+Business ordering requirements
+```
+
+---
+
+# 10. ThreadPool & Async Review
+
+Check for:
+
+```text
+.Result
+.Wait()
+GetAwaiter().GetResult()
+Thread.Sleep()
+Synchronous I/O
+Synchronous database calls
+Synchronous file operations
+Blocking locks around async code
+```
+
+Identify potential ThreadPool starvation.
+
+Prefer:
+
+```text
+async/await
+CancellationToken
+Async I/O
+Bounded concurrency
+```
+
+Avoid unnecessary:
+
+```text
+Task.Run()
+```
+
+especially inside ASP.NET Core request processing.
+
+---
+
+# 11. BackgroundService Review
+
+For every worker verify:
+
+```text
+Startup
+Shutdown
+Cancellation
+Exception handling
+Retry
+Backoff
+Concurrency
+Scope creation
+Resource disposal
+Recovery
+Duplicate processing
+```
+
+A worker must not silently terminate because of an unhandled exception.
+
+Check:
+
+```text
+ExecuteAsync
+PeriodicTimer
+CancellationToken
+IServiceScopeFactory
+```
+
+Ensure scoped dependencies are created correctly.
+
+---
+
+# 12. Container Review
+
+Review:
+
+```text
+Dockerfile
+Container image
+Startup
+Environment variables
+Secrets
+Health checks
+Readiness
+Liveness
+Resource limits
+Resource requests
+Filesystem
+User privileges
+```
+
+Check:
+
+* Running as non-root.
+* Minimal base image.
+* No secrets in image.
+* No secrets in source code.
+* No unnecessary OS packages.
+* Read-only filesystem where possible.
+* Proper signal handling.
+* Graceful shutdown.
+* Correct termination behavior.
+
+---
+
+# 13. Kubernetes / OpenShift Review
+
+Review:
+
+```text
+Deployment
+StatefulSet
+ConfigMap
+Secret
+Service
+Ingress/Route
+HPA
+PDB
+NetworkPolicy
+ServiceAccount
+RBAC
+Probes
+Resource limits
+Affinity
+Anti-affinity
+TopologySpreadConstraints
+```
+
+Check:
+
+### Pod Distribution
+
+Ensure replicas can be distributed across:
+
+```text
+Nodes
+Zones
+Data centers
+```
+
+where architecture requires it.
+
+### Pod Disruption
+
+Verify:
+
+```text
+PDB
+Graceful shutdown
+TerminationGracePeriod
+Connection draining
+Consumer shutdown
+Message processing shutdown
+```
+
+### Resource Management
+
+Check:
+
+```text
+CPU requests
+CPU limits
+Memory requests
+Memory limits
+OOM behavior
+```
+
+Avoid configurations that cause unnecessary throttling or OOMKill.
+
+---
+
+# 14. Multi-Data-Center Review
+
+Assume:
+
+```text
+DC1
+DC2
+```
+
+Review whether the application behaves correctly when:
+
+```text
+DC1 fails
+DC2 fails
+Network partition occurs
+Storage unavailable
+Database unavailable
+Pod failure
+Multiple pods process simultaneously
+```
+
+Check for unsafe local state:
+
+```text
+In-memory locks
+Local files
+Local caches
+Local sequence generators
+Pod-specific state
+```
+
+Never assume:
+
+```text
+Pod A in DC1
+```
+
+can coordinate with:
+
+```text
+Pod B in DC2
+```
+
+through in-memory state.
+
+Durable coordination must use an appropriate shared/replicated mechanism.
+
+---
+
+# 15. Distributed Locking & Idempotency
+
+Identify every operation that can execute twice.
+
+Examples:
+
+```text
+File processing
+Transaction processing
+MQ publishing
+Kafka consuming
+Settlement matching
+Response file generation
+```
+
+Verify:
+
+```text
+Idempotency key
+Unique database constraint
+State transition
+Lease/claim
+Retry behavior
+Duplicate detection
+```
+
+Test:
+
+```text
+Pod A processes
+Pod A crashes
+Pod B retries
+```
+
+Expected:
+
+```text
+No duplicate business effect
+```
+
+---
+
+# 16. Failure Recovery
+
+Review every external dependency:
+
+```text
+PostgreSQL
+IBM MQ
+Kafka
+HTTP services
+NFS
+S3
+DNS
+Secrets
+Configuration
+```
+
+For each determine:
+
+```text
+Failure detection
+Timeout
+Retry
+Backoff
+Circuit breaker
+Recovery
+Reconciliation
+```
+
+Avoid:
+
+```text
+Infinite retries
+Immediate retry loops
+Retry storms
+Unbounded queues
+Permanent failure without recovery
+```
+
+---
+
+# 17. Retry Review
+
+For every retry mechanism verify:
+
+```text
+Maximum attempts
+Exponential backoff
+Jitter
+Retryable errors
+Non-retryable errors
+Timeout
+Cancellation
+Dead-letter handling
+Recovery
+```
+
+Never retry:
+
+```text
+Validation failures
+Authorization failures
+Invalid business data
+Duplicate permanent failures
+```
+
+unless explicitly justified.
+
+---
+
+# 18. Resilience
+
+Review resilience patterns:
+
+```text
+Timeout
+Retry
+Circuit breaker
+Bulkhead
+Rate limiting
+Fallback
+Queue buffering
+Outbox
+Inbox/idempotency
+Reconciliation
+```
+
+Check that resilience mechanisms do not amplify failures.
+
+Example:
+
+```text
+DB unavailable
+   ↓
+10 pods
+   ↓
+Each retries 100 times
+   ↓
+DB recovery becomes harder
+```
+
+Recommend controlled retry and backoff.
+
+---
+
+# 19. Messaging Review
+
+For Kafka and IBM MQ review:
+
+```text
+Producer
+Consumer
+Acknowledgement
+Commit
+Retry
+Duplicate
+Ordering
+Correlation
+Timeout
+Dead letter
+Connection recovery
+```
+
+Check:
+
+* Idempotent consumer.
+* Duplicate messages.
+* Message loss.
+* Retry.
+* Poison messages.
+* Consumer restart.
+* Partial processing.
+* Correlation IDs.
+* Trace propagation.
+
+Do not assume messaging infrastructure provides business-level exactly-once behavior.
+
+Business processing must be idempotent.
+
+---
+
+# 20. File Processing Review
+
+For applications processing files review:
+
+```text
+File discovery
+File locking
+File ownership
+Checksum
+Duplicate detection
+Partial files
+Streaming
+Parsing
+Batch processing
+Output generation
+Atomic rename
+Retry
+Recovery
+```
+
+Check for:
+
+```text
+Processing partially uploaded file
+Duplicate processing
+Reading huge files into memory
+Writing directly to final output
+Incomplete output treated as complete
+```
+
+Prefer:
+
+```text
+Incoming
+   ↓
+Register
+   ↓
+Validate
+   ↓
+Process
+   ↓
+Temp output
+   ↓
+Validate
+   ↓
+Atomic move
+   ↓
+Completed
+```
+
+---
+
+# 21. Exception Handling
+
+Review all exception handling.
+
+Avoid:
+
+```text
+catch(Exception)
+{
+}
+```
+
+Avoid swallowing errors.
+
+Every important failure must have:
+
+```text
+Error code
+Category
+Severity
+Correlation ID
+Trace ID
+Operation
+Stage
+Dependency
+Retryable
+Recoverable
+```
+
+Do not log the same exception at every layer.
+
+Log at the appropriate boundary.
+
+---
+
+# 22. Logging & Observability
+
+Review:
+
+```text
+Structured logging
+OpenTelemetry
+Metrics
+Tracing
+Correlation IDs
+Health checks
+Audit
+```
+
+Every important transaction should be traceable across:
+
+```text
+React
+   ↓
+API
+   ↓
+Service
+   ↓
+Database
+   ↓
+Kafka/MQ
+   ↓
+External system
+```
+
+Use W3C trace context where supported.
+
+Never put sensitive payment/customer information into logs.
+
+Avoid high-cardinality metric labels such as:
+
+```text
+TransactionId
+AccountNumber
+PaymentId
+```
+
+---
+
+# 23. Health Checks
+
+Review:
+
+```text
+Liveness
+Readiness
+Startup
+Dependency health
+```
+
+Do not make liveness dependent on every external dependency.
+
+A temporary database outage should not necessarily cause Kubernetes to endlessly restart the pod.
+
+Distinguish:
+
+```text
+Application process healthy
+```
+
+from:
+
+```text
+Dependency unavailable
+```
+
+---
+
+# 24. Graceful Shutdown
+
+When Kubernetes terminates a pod:
+
+```text
+SIGTERM
+   ↓
+Stop accepting new work
+   ↓
+Cancel workers
+   ↓
+Finish safe in-flight operation
+   ↓
+Commit/rollback
+   ↓
+Release resources
+   ↓
+Close MQ/Kafka
+   ↓
+Exit
+```
+
+Verify that shutdown cannot cause:
+
+```text
+Lost transaction
+Duplicate transaction
+Partial file
+Uncommitted state
+Corrupted output
+```
+
+---
+
+# 25. React Architecture Review
+
+Review:
+
+```text
+Components
+Hooks
+Context
+State management
+API clients
+Routing
+Forms
+Validation
+Error handling
+Loading
+Caching
+```
+
+Look for:
+
+* Overly large components.
+* Excessive re-rendering.
+* Incorrect `useEffect`.
+* Missing dependency arrays.
+* Infinite effect loops.
+* State mutation.
+* Memory leaks.
+* Unmounted component updates.
+* Duplicate API calls.
+* Excessive context usage.
+* Unnecessary global state.
+
+---
+
+# 26. React Security
+
+Check:
+
+```text
+XSS
+DOM injection
+dangerouslySetInnerHTML
+Token storage
+Sensitive data in localStorage
+Sensitive data in sessionStorage
+URL parameter trust
+Open redirects
+Client-side authorization
+```
+
+Never rely on React to enforce authorization.
+
+The backend must enforce authorization.
+
+Avoid storing highly sensitive authentication material in browser-accessible storage unless the security architecture explicitly requires it.
+
+---
+
+# 27. React API Handling
+
+Check:
+
+```text
+Timeout
+Cancellation
+Retry
+401
+403
+404
+409
+429
+500
+503
+Network failure
+```
+
+Ensure users receive useful errors without exposing backend internals.
+
+Avoid automatic infinite retry.
+
+Prevent duplicate submissions.
+
+For important operations use:
+
+```text
+Idempotency key
+Request correlation ID
+Submit-state protection
+```
+
+---
+
+# 28. React Performance
+
+Check:
+
+```text
+Unnecessary rendering
+Large lists
+Missing pagination
+Large JSON payloads
+Expensive calculations
+Memoization
+Virtualization
+Bundle size
+Lazy loading
+Code splitting
+```
+
+For large datasets prefer:
+
+```text
+Server-side pagination
+Filtering
+Sorting
+Virtualization
+Incremental loading
+```
+
+Do not load thousands of records unnecessarily.
+
+---
+
+# 29. Accessibility
+
+Review React UI against enterprise accessibility expectations.
+
+Check:
+
+```text
+Keyboard navigation
+Focus management
+ARIA
+Labels
+Forms
+Errors
+Dialogs
+Tables
+Color contrast
+Screen readers
+Semantic HTML
+```
+
+Do not rely solely on color to communicate status.
+
+---
+
+# 30. Dependency Security
+
+Review:
+
+```text
+NuGet
+npm
+Docker base images
+Third-party libraries
+```
+
+Identify:
+
+* Known vulnerabilities.
+* Abandoned packages.
+* Unnecessary packages.
+* Excessive permissions.
+* Transitive vulnerabilities.
+
+Do not upgrade unrelated dependencies without justification.
+
+---
+
+# 31. Configuration & Secrets
+
+Check:
+
+```text
+appsettings
+environment variables
+ConfigMap
+Secret
+Dockerfile
+CI/CD
+source code
+React environment configuration
+```
+
+Never commit:
+
+```text
+Password
+API key
+Token
+Private key
+Certificate private material
+Database credentials
+MQ credentials
+Kafka credentials
+```
+
+Check build-time React variables carefully because frontend configuration is generally visible to users.
+
+---
+
+# 32. Caching
+
+Review:
+
+```text
+MemoryCache
+Distributed cache
+Redis
+Browser cache
+HTTP cache
+Application cache
+```
+
+Check:
+
+* Expiration.
+* Eviction.
+* Maximum size.
+* Stale data.
+* Multi-DC consistency.
+* Sensitive data caching.
+* Cache stampede.
+
+Never rely on local memory cache for distributed coordination.
+
+---
+
+# 33. Database Connection Pooling
+
+Check:
+
+```text
+Connection lifetime
+Max pool size
+Min pool size
+Timeout
+Long-running connections
+Connection leaks
+```
+
+Ensure application parallelism does not exceed practical database capacity.
+
+---
+
+# 34. Resource Cleanup
+
+Review all `IDisposable` / `IAsyncDisposable` resources:
+
+```text
+DbContext
+DbConnection
+DbTransaction
+Stream
+FileStream
+HttpResponseMessage
+CancellationTokenSource
+Timer
+MQ connection
+Kafka resources
+```
+
+Use:
+
+```text
+using
+await using
+IAsyncDisposable
+```
+
+where appropriate.
+
+---
+
+# 35. Cancellation
+
+Propagate `CancellationToken` through:
+
+```text
+API
+Service
+Database
+HTTP
+MQ
+Kafka
+File processing
+Background worker
+Retry
+```
+
+Do not ignore cancellation.
+
+Especially verify Kubernetes shutdown behavior.
+
+---
+
+# 36. Data Integrity
+
+Review:
+
+```text
+Transactions
+State transitions
+Concurrency
+Unique constraints
+Foreign keys
+Optimistic concurrency
+Validation
+Duplicate prevention
+Partial updates
+```
+
+Business state transitions should be explicit.
+
+Example:
+
+```text
+RECEIVED
+   ↓
+VALIDATED
+   ↓
+PROCESSING
+   ↓
+COMPLETED
+```
+
+Prevent invalid transitions such as:
+
+```text
+COMPLETED → PROCESSING
+```
+
+unless explicitly supported.
+
+---
+
+# 37. API and Database Consistency
+
+Look for:
+
+```text
+DB commit
+   ↓
+Message publish
+```
+
+and:
+
+```text
+Message publish
+   ↓
+DB update
+```
+
+Identify failure windows.
+
+Recommend:
+
+```text
+Transactional Outbox
+Idempotent consumer
+Inbox pattern
+Reconciliation
+```
+
+where appropriate.
+
+---
+
+# 38. Performance Review
+
+Identify:
+
+```text
+CPU hotspots
+Memory hotspots
+Database hotspots
+Network calls
+Serialization
+Deserialization
+File I/O
+Lock contention
+ThreadPool pressure
+```
+
+Do not optimize based only on assumptions.
+
+For significant issues recommend measurements:
+
+```text
+Baseline
+Change
+Benchmark
+Compare
+```
+
+---
+
+# 39. Scalability Review
+
+Determine behavior when:
+
+```text
+1 pod
+5 pods
+20 pods
+2 DCs
+Large file
+Large transaction volume
+Dependency slowdown
+```
+
+Check:
+
+```text
+Horizontal scaling
+Queue processing
+Database scalability
+Connection limits
+Memory growth
+CPU growth
+Lock contention
+```
+
+Identify bottlenecks.
+
+---
+
+# 40. Testing Review
+
+Review existing:
+
+```text
+Unit tests
+Integration tests
+Contract tests
+API tests
+UI tests
+End-to-end tests
+Performance tests
+Security tests
+Chaos tests
+```
+
+Identify missing tests for:
+
+```text
+Pod restart
+DB failure
+MQ failure
+Kafka failure
+Duplicate message
+Timeout
+Cancellation
+Retry exhaustion
+Concurrent processing
+Multi-DC recovery
+Partial file
+Output failure
+```
+
+---
+
+# 41. Remediation Requirements
+
+For every valid issue, provide a remediation action.
+
+Use:
+
+```text
+Finding
+↓
+Root Cause
+↓
+Impact
+↓
+Recommended Remediation
+↓
+Implementation
+↓
+Validation
+```
+
+Prioritize:
+
+```text
+P0 → P1 → P2 → P3
+```
+
+Do not make unrelated refactoring changes.
+
+---
+
+# 42. Remediation Rules
+
+When modifying code:
+
+* Preserve behavior.
+* Keep changes minimal.
+* Prefer framework-native solutions.
+* Reuse existing abstractions.
+* Avoid unnecessary dependencies.
+* Add tests for the defect.
+* Search for similar patterns.
+* Fix repeated patterns consistently.
+* Maintain backward compatibility where required.
+
+Do not mark an issue fixed merely because the warning disappears.
+
+The underlying risk must actually be addressed.
+
+---
+
+# 43. Similar-Pattern Analysis
+
+After fixing every important issue, search the repository for similar patterns.
+
+Examples:
+
+```text
+Raw SQL
+String-built queries
+Blocking async
+Unbounded Task.WhenAll
+Missing CancellationToken
+Static mutable collections
+Unsafe file paths
+Hardcoded secrets
+dangerouslySetInnerHTML
+Missing authorization
+Unbounded retries
+Improper DbContext lifetime
+Direct final-file writes
+Missing idempotency
+```
+
+Report related occurrences.
+
+---
+
+# 44. Validation After Remediation
+
+Run or recommend:
+
+```text
+Build
+Unit tests
+Integration tests
+API tests
+React tests
+E2E tests
+Security scan
+SAST
+SonarQube
+Dependency scan
+Container scan
+```
+
+Where possible perform:
+
+```text
+Before
+vs
+After
+```
+
+comparison.
+
+Confirm:
+
+```text
+No regression
+No new security vulnerability
+No new critical Sonar issue
+No broken API
+No broken UI
+No performance regression
+```
+
+---
+
+# 45. Production Readiness Score
+
+Provide scores from 0–100 for:
+
+```text
+Security
+Code Quality
+Reliability
+Resilience
+Recovery
+Concurrency
+Memory
+Performance
+Scalability
+Observability
+Container Readiness
+Kubernetes/OpenShift
+Multi-DC
+React Quality
+Accessibility
+Testing
+Maintainability
+```
+
+Calculate an overall score.
+
+Clearly identify any **P0/P1 blocker**, regardless of the overall score.
+
+---
+
+# 46. Final Report
+
+Produce the following final report.
+
+## Executive Summary
+
+```text
+Overall Assessment:
+Production Ready / Conditionally Ready / Not Ready
+
+Overall Score:
+
+P0:
+P1:
+P2:
+P3:
+```
+
+## Critical Findings
+
+| Priority | Category | Finding | Impact | Remediation | Status |
+| -------- | -------- | ------- | ------ | ----------- | ------ |
+
+## Security Findings
+
+| Severity | Finding | Risk | Remediation | Status |
+| -------- | ------- | ---- | ----------- | ------ |
+
+## Performance / Memory
+
+| Finding | Impact | Recommendation | Status |
+| ------- | ------ | -------------- | ------ |
+
+## Concurrency / Parallelism
+
+| Finding | Risk | Recommendation | Status |
+| ------- | ---- | -------------- | ------ |
+
+## Reliability / Recovery
+
+| Failure Scenario | Current Behavior | Risk | Remediation |
+| ---------------- | ---------------- | ---- | ----------- |
+
+## Container / Kubernetes
+
+| Finding | Risk | Remediation | Status |
+| ------- | ---- | ----------- | ------ |
+
+## Multi-DC
+
+| Scenario | Expected | Current | Gap |
+| -------- | -------- | ------- | --- |
+
+## React
+
+| Category | Finding | Remediation | Status |
+| -------- | ------- | ----------- | ------ |
+
+## Changed Files
+
+List only files modified by remediation.
+
+## Tests Executed
+
+List:
+
+```text
+Build
+Unit
+Integration
+API
+UI
+E2E
+Security
+Static analysis
+Performance
+```
+
+## Remaining Risks
+
+Clearly identify issues that require:
+
+```text
+Architecture decision
+Infrastructure team
+Database team
+MQ team
+Kafka team
+Security team
+Manual validation
+```
+
+---
+
+# 47. Final Acceptance Criteria
+
+The application should be considered enterprise-ready only when:
+
+```text
+No unresolved P0 security issues
+No unresolved P0 data-integrity issues
+No known duplicate financial processing path
+No known lost-message path
+No uncontrolled parallelism
+No uncontrolled memory growth
+No blocking async operations
+No unbounded retry loops
+No critical secret exposure
+Authorization enforced server-side
+Graceful pod shutdown implemented
+Pod restart recovery verified
+Dependency failure recovery verified
+Multi-DC behavior verified
+Observability implemented
+Correlation/traceability implemented
+Critical business paths tested
+Container security validated
+React security validated
+Accessibility baseline validated
+```
+
+Most importantly, do not only report problems.
+
+For each actionable issue, provide the **specific remediation action and implementation approach**, and where code changes are allowed, make the remediation directly and validate it.
+
+The final objective is:
+
+**Secure + Correct + Resilient + Recoverable + Observable + Scalable + Maintainable enterprise application.**
