@@ -1,0 +1,611 @@
+# React UI Accessibility Review & Remediation
+
+You are an expert frontend accessibility engineer specializing in **React, WCAG 2.2 AA, semantic HTML, keyboard accessibility, screen readers, and enterprise UI applications**.
+
+Review the attached/provided React application source code and **identify, fix, validate, and document accessibility issues**.
+
+## Objective
+
+Bring the application as close as reasonably possible to **WCAG 2.2 Level AA** compliance while preserving:
+
+* Existing functionality
+* Existing business behavior
+* Existing UI/UX and styling
+* Existing APIs and backend integration
+* Existing component architecture
+* Existing test coverage
+
+Do not make unnecessary architectural changes.
+
+---
+
+## 1. Review Scope
+
+Inspect the complete UI codebase, including:
+
+* React components
+* JSX/TSX
+* HTML
+* CSS/SCSS
+* UI component libraries
+* Forms
+* Modals/dialogs
+* Menus
+* Dropdowns
+* Tables
+* Tabs
+* Accordions
+* Tooltips
+* Toasts/notifications
+* Pagination
+* Navigation
+* Search
+* Filters
+* Error messages
+* Loading states
+* Empty states
+* Charts/data visualizations
+* Authentication screens
+* Responsive/mobile layouts
+* Custom controls
+* Reusable components
+* Routing/navigation
+* Automated UI tests
+
+Pay particular attention to reusable components because fixing a shared component may resolve accessibility issues across multiple screens.
+
+---
+
+# 2. Accessibility Standards
+
+Evaluate against:
+
+* WCAG 2.2 Level A
+* WCAG 2.2 Level AA
+* WAI-ARIA Authoring Practices
+* Semantic HTML best practices
+* Keyboard-only navigation
+* Screen-reader usability
+
+Prioritize issues that affect actual user accessibility over cosmetic improvements.
+
+---
+
+# 3. Review Categories
+
+Check at minimum:
+
+### Semantic HTML
+
+Identify:
+
+* Missing semantic elements
+* Incorrect heading hierarchy
+* `<div>`/`<span>` used as interactive controls
+* Missing landmarks
+* Incorrect button/link usage
+* Missing `<main>`, `<nav>`, `<header>`, `<footer>`, etc.
+
+Prefer native HTML semantics over ARIA whenever possible.
+
+---
+
+### Keyboard Accessibility
+
+Verify that every interactive element can be operated using:
+
+* Tab
+* Shift+Tab
+* Enter
+* Space
+* Arrow keys where appropriate
+* Escape where appropriate
+
+Check for:
+
+* Keyboard traps
+* Unreachable controls
+* Incorrect tab order
+* Positive `tabindex`
+* Focus disappearing
+* Modal focus problems
+* Dropdown/menu keyboard behavior
+* Custom controls that only respond to mouse events
+
+---
+
+### Focus Management
+
+Check:
+
+* Visible focus indicator
+* Logical focus order
+* Focus after navigation
+* Modal/dialog focus
+* Dropdown focus
+* Error focus
+* Dynamic content focus
+* Focus restoration after closing overlays
+
+Do not remove browser focus indicators unless an equivalent accessible focus indicator exists.
+
+---
+
+### Screen Reader Accessibility
+
+Review:
+
+* Accessible names
+* Accessible descriptions
+* ARIA labels
+* ARIA descriptions
+* ARIA roles
+* ARIA states
+* ARIA relationships
+* Hidden content
+* Live regions
+* Dynamic updates
+* Screen-reader-only content
+
+Avoid redundant or incorrect ARIA.
+
+Follow:
+
+> Native HTML first → ARIA only when necessary.
+
+---
+
+### Forms
+
+Check:
+
+* Every input has an accessible label
+* Labels are programmatically associated
+* Required fields are announced
+* Validation errors are accessible
+* Error messages are associated with fields
+* Invalid fields expose appropriate state
+* Instructions are accessible
+* Placeholder is not used as the only label
+* Error summary exists where appropriate
+* Keyboard navigation works correctly
+
+Example pattern:
+
+```tsx
+<label htmlFor="email">Email address</label>
+
+<input
+  id="email"
+  name="email"
+  type="email"
+  aria-invalid={hasError}
+  aria-describedby={hasError ? "email-error" : undefined}
+/>
+
+{hasError && (
+  <div id="email-error" role="alert">
+    Enter a valid email address.
+  </div>
+)}
+```
+
+---
+
+### Images and Icons
+
+Check:
+
+* Meaningful images have appropriate alternative text
+* Decorative images use empty alt text
+* SVG accessibility
+* Icon-only buttons have accessible names
+* Decorative icons are hidden from assistive technology
+* Avoid redundant screen-reader announcements
+
+Example:
+
+```tsx
+<button aria-label="Close dialog">
+  <CloseIcon aria-hidden="true" />
+</button>
+```
+
+---
+
+### Color and Contrast
+
+Check:
+
+* Text contrast
+* Large text contrast
+* Interactive controls
+* Focus indicators
+* Disabled states
+* Error/success/warning states
+* Charts and graphs
+* Links
+* Hover/focus states
+
+Do not communicate information using color alone.
+
+Example:
+
+Bad:
+
+```text
+Field turns red
+```
+
+Better:
+
+```text
+Field turns red + accessible error message + invalid state
+```
+
+---
+
+### Links and Buttons
+
+Verify:
+
+* Links navigate
+* Buttons perform actions
+* Accessible names are meaningful
+* Link text is understandable
+* Icon-only controls have labels
+* No clickable `<div>` or `<span>` unless there is an exceptional reason
+
+Replace patterns such as:
+
+```tsx
+<div onClick={handleClick}>Submit</div>
+```
+
+with:
+
+```tsx
+<button type="button" onClick={handleClick}>
+  Submit
+</button>
+```
+
+---
+
+### Modals and Dialogs
+
+Check:
+
+* Correct dialog semantics
+* Accessible dialog name
+* Focus moves into dialog
+* Focus is trapped appropriately
+* Escape closes when appropriate
+* Focus returns to triggering element
+* Background content is inaccessible while modal is active
+* Screen reader behavior is correct
+
+---
+
+### Tables
+
+Check:
+
+* Proper table semantics
+* Header cells
+* Scope
+* Captions where appropriate
+* Sortable-column announcements
+* Pagination accessibility
+* Row/action accessibility
+* Responsive table behavior
+
+---
+
+### Dynamic Content
+
+Check:
+
+* Loading states
+* API responses
+* Toast messages
+* Error notifications
+* Success notifications
+* Async updates
+* Progress indicators
+* Infinite scrolling
+* Client-side navigation
+
+Ensure important updates are exposed appropriately to assistive technologies without excessive announcements.
+
+---
+
+### SPA Navigation
+
+For React routing:
+
+* Page changes should be detectable by screen readers
+* Focus should move appropriately after navigation
+* Page titles should update
+* Browser history should continue working
+* Navigation should be keyboard accessible
+
+---
+
+### Responsive Accessibility
+
+Test accessibility at:
+
+* Desktop
+* Tablet
+* Mobile
+* Zoom 200%
+* Zoom 400% where practical
+* Narrow viewport
+
+Ensure content does not become unusable because of responsive CSS.
+
+---
+
+# 4. Automated Accessibility Testing
+
+Inspect existing accessibility tests and add tests where missing.
+
+Use appropriate tooling available in the project, such as:
+
+* axe-core
+* jest-axe
+* Playwright accessibility checks
+* Testing Library
+* eslint-plugin-jsx-a11y
+* Lighthouse where appropriate
+
+Do not add dependencies unnecessarily.
+
+If Playwright exists, add representative accessibility checks such as:
+
+```ts
+const accessibilityScanResults = await new AxeBuilder({
+  page
+}).analyze();
+
+expect(accessibilityScanResults.violations).toEqual([]);
+```
+
+Adapt the implementation to the project's existing testing framework.
+
+---
+
+# 5. Manual Accessibility Scenarios
+
+Validate representative journeys using keyboard-only interaction.
+
+At minimum test:
+
+1. Application startup
+2. Login/authentication
+3. Main navigation
+4. Search
+5. Form submission
+6. Validation errors
+7. Modal/dialog
+8. Dropdown/select
+9. Table interaction
+10. Pagination
+11. Notifications
+12. Loading state
+13. Error state
+14. SPA navigation
+15. Logout
+
+For each journey verify:
+
+* Keyboard operation
+* Focus visibility
+* Focus order
+* Screen-reader semantics
+* Accessible names
+* Dynamic announcements
+
+---
+
+# 6. Severity Classification
+
+Classify every finding:
+
+### Critical
+
+Blocks users from completing a primary task.
+
+### High
+
+Major accessibility barrier requiring remediation.
+
+### Medium
+
+Significant WCAG issue but workaround exists.
+
+### Low
+
+Minor accessibility improvement.
+
+Also identify:
+
+* WCAG success criterion
+* Component/file
+* Root cause
+* Recommended fix
+* Actual fix implemented
+* Validation method
+
+---
+
+# 7. Remediation Strategy
+
+Fix issues in this order:
+
+1. Shared/reusable components
+2. Critical user journeys
+3. Keyboard accessibility
+4. Forms and validation
+5. Focus management
+6. Screen-reader semantics
+7. Contrast/color
+8. Dynamic content
+9. Responsive behavior
+10. Minor improvements
+
+Avoid duplicating accessibility logic across individual screens when it belongs in a shared component.
+
+---
+
+# 8. Code Quality Requirements
+
+While fixing accessibility:
+
+* Follow existing project conventions
+* Preserve TypeScript typing
+* Avoid unnecessary `any`
+* Avoid duplicated logic
+* Avoid unnecessary ARIA
+* Avoid unnecessary dependencies
+* Do not introduce lint errors
+* Do not break existing tests
+* Do not change APIs
+* Do not change business logic
+* Keep components maintainable
+
+Prefer simple, native HTML solutions.
+
+---
+
+# 9. Validation
+
+After remediation run the available:
+
+* Unit tests
+* Component tests
+* Integration tests
+* E2E tests
+* Accessibility tests
+* ESLint
+* TypeScript compilation
+* Build
+* Existing quality/security scans
+
+Fix regressions caused by the remediation.
+
+If an accessibility issue cannot be automatically validated, explicitly document the required manual validation.
+
+---
+
+# 10. Accessibility Regression Protection
+
+For important reusable components and journeys, add automated accessibility tests so the same issue cannot easily be reintroduced.
+
+Prioritize regression tests for:
+
+* Buttons
+* Forms
+* Inputs
+* Selects
+* Modals
+* Navigation
+* Tables
+* Tabs
+* Menus
+* Notifications
+* Common layout components
+
+---
+
+# 11. Deliverables
+
+Produce an accessibility remediation report containing:
+
+| ID | Severity | Component/File | Issue | WCAG | Fix | Validation | Status |
+| -- | -------- | -------------- | ----- | ---- | --- | ---------- | ------ |
+
+Also provide:
+
+### Executive Summary
+
+* Total issues found
+* Critical issues
+* High issues
+* Medium issues
+* Low issues
+* Issues fixed
+* Issues remaining
+* Overall accessibility assessment
+
+### Fixed Issues
+
+List the actual code changes made.
+
+### Remaining Issues
+
+Only list issues that genuinely cannot be fixed within the current scope.
+
+For each remaining issue explain:
+
+* Why it remains
+* User impact
+* Recommended next step
+
+### Test Results
+
+Report:
+
+```text
+Build: PASS/FAIL
+Unit Tests: PASS/FAIL
+E2E Tests: PASS/FAIL
+Accessibility Tests: PASS/FAIL
+Lint: PASS/FAIL
+TypeScript: PASS/FAIL
+```
+
+---
+
+# 12. Important Constraints
+
+Do NOT simply generate an accessibility report.
+
+**Actually modify the source code and implement the fixes.**
+
+Do not blindly add:
+
+```tsx
+aria-label
+role
+tabIndex
+```
+
+to everything.
+
+First determine whether proper semantic HTML solves the problem.
+
+Do not claim WCAG compliance solely because automated accessibility tests pass. Automated testing cannot identify every accessibility problem.
+
+Do not modify functionality merely to satisfy a scanner.
+
+For every change, preserve existing application behavior.
+
+---
+
+# Final Output
+
+At the end provide:
+
+1. **Accessibility score/assessment**
+2. **Issues discovered**
+3. **Issues fixed**
+4. **Issues remaining**
+5. **Files/components changed**
+6. **Tests added**
+7. **Validation results**
+8. **Potential regressions**
+9. **Recommended next steps**
+
+The final goal is a **working, tested, accessibility-improved React application**, not merely an accessibility report.
