@@ -1,0 +1,1558 @@
+For Claude/Codex/other coding agents, the **best requirement format is not a traditional BRD with long prose**. It should be a structured, machine-readable **Business + Functional Specification** where every requirement has an ID, explicit behavior, rules, inputs/outputs, state transitions, acceptance criteria, and test scenarios.
+
+For your enterprise payment platform, I would use the following structure.
+
+# AI-Ready Business Requirements Specification
+
+## 1. Purpose
+
+This document defines the business behavior, functional requirements, business rules, workflows, data requirements, integrations, security, recovery expectations, and acceptance criteria for the application.
+
+The document must be written so that:
+
+1. A business analyst can validate the business intent.
+2. An architect can derive the system design.
+3. A developer can implement the functionality.
+4. An AI coding agent can locate the required implementation.
+5. A QA engineer can derive automated functional tests.
+6. An AI coding agent can verify implementation against the requirement.
+7. Operations can understand expected processing and recovery behavior.
+
+The requirements must be **specific enough to implement and test without guessing**.
+
+---
+
+# 2. Requirement Writing Principles
+
+Follow these rules for every requirement.
+
+### Rule 1 — Give every requirement a unique ID
+
+Use stable IDs:
+
+```text
+BR-001
+BR-002
+BR-003
+
+FR-001
+FR-002
+
+BUS-001
+API-001
+SEC-001
+REC-001
+```
+
+Never use requirement numbers that change when the document is reordered.
+
+---
+
+### Rule 2 — One requirement should describe one behavior
+
+Bad:
+
+> The system should receive the file, validate it, process transactions, send messages, handle errors and generate the response.
+
+Good:
+
+```text
+FR-001 File Registration
+FR-002 File Validation
+FR-003 Transaction Processing
+FR-004 Reservation Request
+FR-005 Response Processing
+FR-006 Response File Generation
+```
+
+This makes implementation and testing much easier.
+
+---
+
+### Rule 3 — Avoid vague words
+
+Avoid:
+
+* quickly
+* efficiently
+* appropriately
+* securely
+* normally
+* properly
+* user-friendly
+* high performance
+* reliable
+* seamless
+* as needed
+
+Replace them with measurable behavior.
+
+Bad:
+
+> The system should process files quickly.
+
+Good:
+
+> The system shall begin processing a registered file within 30 seconds of successful file registration under normal operating conditions.
+
+---
+
+### Rule 4 — Use "shall" for mandatory behavior
+
+Use:
+
+> The system shall...
+
+Use:
+
+> The system may...
+
+for optional behavior.
+
+Use:
+
+> The system should...
+
+only when the requirement is intentionally non-mandatory.
+
+---
+
+### Rule 5 — Separate requirement from implementation
+
+Do not write:
+
+> The system shall use PostgreSQL with Entity Framework Core.
+
+unless that is actually a business/technical constraint.
+
+Prefer:
+
+> The system shall persist the transaction before sending it for reservation.
+
+Then architecture/design documents can specify:
+
+> PostgreSQL is used for durable transaction persistence.
+
+This allows AI agents to distinguish **what the system must do** from **how it is implemented**.
+
+---
+
+# 3. Requirement Classification
+
+Every requirement must have a type.
+
+Allowed types:
+
+```text
+BUSINESS
+FUNCTIONAL
+BUSINESS_RULE
+DATA
+API
+UI
+INTEGRATION
+MESSAGING
+FILE
+SECURITY
+AUTHORIZATION
+AUDIT
+PERFORMANCE
+RELIABILITY
+RECOVERY
+MULTI_DC
+OBSERVABILITY
+OPERATIONAL
+COMPLIANCE
+TESTING
+```
+
+Example:
+
+```text
+ID: FR-015
+Type: FILE
+Priority: P1
+```
+
+---
+
+# 4. Requirement Template
+
+Every requirement should follow this structure.
+
+```text
+Requirement ID:
+Title:
+Type:
+Priority:
+Status:
+
+Business Objective:
+
+Business Description:
+
+Actors:
+
+Trigger:
+
+Preconditions:
+
+Inputs:
+
+Processing:
+
+Business Rules:
+
+Outputs:
+
+State Changes:
+
+Exceptions:
+
+Retry Behavior:
+
+Recovery Behavior:
+
+Security Requirements:
+
+Audit Requirements:
+
+Observability Requirements:
+
+Performance Requirements:
+
+Dependencies:
+
+Acceptance Criteria:
+
+Test Scenarios:
+
+Related Requirements:
+
+Related Documents:
+```
+
+Do not leave critical sections empty.
+
+If a section does not apply, explicitly state:
+
+```text
+Not Applicable
+```
+
+rather than leaving it ambiguous.
+
+---
+
+# 5. Requirement Example
+
+## FR-001 — Register Prefund File
+
+```text
+Requirement ID: FR-001
+Title: Register Prefund File
+Type: FILE
+Priority: P0
+Status: REQUIRED
+
+Business Objective:
+
+Ensure every received prefund file is durably registered before
+business transaction processing begins.
+
+Actors:
+
+External Payment Processing System
+ACH Processing Platform
+
+Trigger:
+
+A new prefund file becomes available in the configured inbound
+storage location.
+
+Preconditions:
+
+1. The file is available for reading.
+2. The file is completely written.
+3. The file has a valid file name.
+4. The platform can access the configured storage.
+
+Inputs:
+
+1. File name
+2. File size
+3. File content
+4. File checksum
+5. Received timestamp
+
+Processing:
+
+1. Detect the file.
+2. Verify that the file is complete.
+3. Calculate the checksum.
+4. Determine whether the file has already been registered.
+5. Create a durable file registration record.
+6. Assign a unique internal File ID.
+7. Set the file state to REGISTERED.
+8. Make the file eligible for processing.
+
+Business Rules:
+
+BR-001:
+A file with the same business file identifier and checksum
+shall not be processed more than once.
+
+BR-002:
+A file with the same business file identifier but a different
+checksum shall be treated as a file integrity exception.
+
+BR-003:
+A file shall not enter transaction processing until registration
+has been committed successfully.
+
+Outputs:
+
+File registration record.
+
+State Changes:
+
+RECEIVED → REGISTERED
+
+Exceptions:
+
+FILE_INCOMPLETE
+FILE_DUPLICATE
+FILE_CHECKSUM_MISMATCH
+STORAGE_UNAVAILABLE
+DATABASE_UNAVAILABLE
+
+Retry Behavior:
+
+STORAGE_UNAVAILABLE and DATABASE_UNAVAILABLE shall be retried
+using the platform retry policy.
+
+FILE_CHECKSUM_MISMATCH shall not be automatically retried.
+
+Recovery Behavior:
+
+If the application terminates after file registration but before
+transaction processing, another application instance shall be able
+to discover and continue processing the registered file.
+
+Security Requirements:
+
+The file shall be processed only by an authorized service identity.
+
+Audit Requirements:
+
+Record:
+
+- File ID
+- File name
+- checksum
+- received timestamp
+- registration timestamp
+- processing instance
+- correlation ID
+
+Observability Requirements:
+
+Emit:
+
+- file_registered event
+- registration_success metric
+- registration_failure metric
+- correlation ID
+
+Performance Requirements:
+
+Registration shall not require loading the complete file into memory.
+
+Dependencies:
+
+Inbound file storage
+Database
+
+Acceptance Criteria:
+
+AC-001:
+Given a valid new prefund file,
+when the file is detected,
+then a REGISTERED record shall exist.
+
+AC-002:
+Given the same file is detected twice,
+when the second detection occurs,
+then the file shall not be processed twice.
+
+AC-003:
+Given database availability is lost,
+when registration is attempted,
+then the file shall remain available for later retry.
+
+AC-004:
+Given the application terminates after registration,
+when another instance starts,
+then the registered file shall be discoverable for processing.
+
+AC-005:
+Given a checksum mismatch,
+when validation occurs,
+then the file shall enter FILE_CHECKSUM_MISMATCH
+and shall not be processed.
+
+Test Scenarios:
+
+TC-001 New valid file
+TC-002 Duplicate file
+TC-003 Same file ID with different checksum
+TC-004 Database unavailable
+TC-005 Application restart
+TC-006 Concurrent processing by two pods
+TC-007 Storage unavailable
+
+Related Requirements:
+
+FR-002
+FR-003
+BR-001
+REC-001
+```
+
+This format gives an AI agent almost everything it needs to derive both **code and tests**.
+
+---
+
+# 6. Business Rules
+
+Business rules should have their own IDs.
+
+Example:
+
+```text
+BR-001 — Duplicate Prefund File
+
+Rule:
+
+A prefund file shall not be processed more than once.
+
+Uniqueness:
+
+Business File ID + File Type
+
+Exception:
+
+If the same Business File ID exists with a different checksum,
+the file shall be rejected as an integrity exception.
+
+Expected State:
+
+DUPLICATE_FILE
+
+Expected Audit:
+
+Record duplicate detection.
+
+Test:
+
+TC-BR-001
+```
+
+This is better than embedding a long paragraph inside another requirement.
+
+---
+
+# 7. State Transition Specification
+
+Any workflow containing statuses should have an explicit state machine.
+
+Example:
+
+```text
+Prefund File:
+
+RECEIVED
+   ↓
+REGISTERED
+   ↓
+VALIDATING
+   ↓
+VALIDATED
+   ↓
+PROCESSING
+   ↓
+COMPLETED
+```
+
+Failure paths:
+
+```text
+VALIDATING → VALIDATION_FAILED
+
+PROCESSING → PROCESSING_FAILED
+
+PROCESSING → RETRY_PENDING
+RETRY_PENDING → PROCESSING
+```
+
+For each transition specify:
+
+```text
+Current State:
+Event:
+Required Conditions:
+Next State:
+Failure State:
+Can Retry:
+Can Repeat:
+Idempotent:
+```
+
+Example:
+
+```text
+Current State:
+VALIDATED
+
+Event:
+START_PROCESSING
+
+Conditions:
+File validation completed successfully.
+
+Next State:
+PROCESSING
+
+Failure:
+PROCESSING_FAILED
+
+Can Retry:
+YES
+
+Can Repeat:
+NO
+
+Idempotent:
+YES
+```
+
+This is extremely useful for AI implementation because it prevents agents from inventing arbitrary state transitions.
+
+---
+
+# 8. Business Workflow
+
+Document workflows independently from individual requirements.
+
+Example:
+
+```text
+WF-001 — Prefund Processing
+
+External System
+      ↓
+Inbound File
+      ↓
+File Registration
+      ↓
+Checksum Validation
+      ↓
+File Parsing
+      ↓
+Transaction Persistence
+      ↓
+Reservation Request
+      ↓
+IBM MQ
+      ↓
+Internal Reservation System
+      ↓
+Reservation Response
+      ↓
+Transaction Update
+      ↓
+Response File
+      ↓
+Outbound Storage
+```
+
+Document every step.
+
+For each step define:
+
+```text
+Step ID:
+Input:
+Action:
+Output:
+Persistent State:
+Dependency:
+Failure:
+Retry:
+Recovery:
+Next Step:
+```
+
+---
+
+# 9. Exception Requirements
+
+Do not bury exception behavior inside normal processing.
+
+Create explicit requirements.
+
+Example:
+
+```text
+REC-001 — Application Restart During Processing
+
+Trigger:
+
+Application instance terminates during transaction processing.
+
+Expected Behavior:
+
+1. In-progress work shall remain durably identifiable.
+2. Another instance shall be able to discover incomplete work.
+3. Previously completed transactions shall not be processed again.
+4. Incomplete transactions shall resume or enter retry state.
+5. Processing shall not create duplicate reservation requests.
+
+Acceptance Criteria:
+
+AC-REC-001:
+Terminate the processing pod after database persistence and before
+message publication.
+
+Expected:
+
+The transaction remains recoverable.
+
+AC-REC-002:
+Restart the application.
+
+Expected:
+
+The transaction is discovered and processing continues.
+
+AC-REC-003:
+Verify no duplicate business reservation occurs.
+```
+
+For enterprise platforms, these recovery requirements are as important as the happy path.
+
+---
+
+# 10. Integration Requirements
+
+Every external/internal integration should have its own specification.
+
+Example:
+
+```text
+INT-001 — Reservation Request
+
+Source:
+ACH Processing Platform
+
+Target:
+Reservation Service
+
+Protocol:
+IBM MQ
+
+Message:
+ReservationRequest
+
+Required Fields:
+Transaction ID
+Amount
+Currency
+Correlation ID
+
+Timeout:
+10 seconds
+
+Retry:
+3 attempts
+
+Duplicate Handling:
+Consumer shall treat Transaction ID as idempotency key.
+
+Failure:
+After retry exhaustion, transaction shall enter
+RESERVATION_RETRY_EXHAUSTED.
+
+Recovery:
+Retry processing shall resume after MQ becomes available.
+```
+
+Do not assume the AI knows the expected failure semantics.
+
+---
+
+# 11. Data Requirements
+
+Define business data separately.
+
+Example:
+
+```text
+DATA-001 — Prefund Transaction
+
+Business Key:
+External Transaction ID
+
+Required Fields:
+
+Transaction ID
+External Transaction ID
+Amount
+Currency
+File ID
+Received Timestamp
+Status
+
+Uniqueness:
+
+External Transaction ID shall be unique.
+
+Amount:
+
+Decimal
+Scale: 2
+
+Status:
+
+RECEIVED
+VALIDATED
+RESERVATION_PENDING
+RESERVED
+SETTLEMENT_PENDING
+SETTLED
+FAILED
+```
+
+Avoid specifying database implementation unless required.
+
+---
+
+# 12. API Requirements
+
+For each API:
+
+```text
+API-001 — Submit Prefund File
+
+Method:
+POST
+
+Path:
+Defined by API specification.
+
+Authentication:
+Required
+
+Authorization:
+PREFUND_SUBMIT
+
+Request:
+Multipart file
+
+Maximum Size:
+Defined limit
+
+Success:
+HTTP 202
+
+Response:
+File ID
+Correlation ID
+Status
+
+Errors:
+
+400 Invalid file
+401 Unauthenticated
+403 Unauthorized
+409 Duplicate
+413 File too large
+500 Internal error
+
+Idempotency:
+Idempotency-Key required.
+
+Audit:
+Required.
+
+Correlation:
+Correlation ID returned in response.
+```
+
+---
+
+# 13. UI Requirements
+
+Describe behavior rather than implementation details.
+
+Example:
+
+```text
+UI-001 — Prefund Processing Dashboard
+
+Authorized users shall be able to view:
+
+- Prefund files
+- Processing status
+- Transaction count
+- Total amount
+- Failed transactions
+- Pending transactions
+- Processing duration
+
+Filters:
+
+Date
+File ID
+Status
+Transaction ID
+
+User shall be able to:
+
+View file
+View transactions
+View processing trace
+View exceptions
+
+Unauthorized users shall not be able to access the dashboard.
+```
+
+---
+
+# 14. Security Requirements
+
+Security should be explicit.
+
+Example:
+
+```text
+SEC-001 — Authorization
+
+The platform shall enforce authorization for every protected
+business operation.
+
+Roles:
+
+Operations
+Business User
+Administrator
+
+Operations:
+View processing status
+Retry eligible processing
+
+Business User:
+View business results
+
+Administrator:
+Manage configuration
+
+The frontend shall not be considered the authorization boundary.
+```
+
+---
+
+# 15. Performance Requirements
+
+Performance requirements must contain measurable targets.
+
+Bad:
+
+> The application should be scalable.
+
+Good:
+
+```text
+PERF-001
+
+The system shall support at least 10 concurrent file-processing
+jobs without exceeding the defined CPU, memory, database connection,
+and messaging limits.
+
+PERF-002
+
+Transaction processing shall use bounded concurrency.
+
+PERF-003
+
+The application shall not load an entire input file into memory
+when streaming processing is possible.
+```
+
+---
+
+# 16. Multi-Data-Center Requirements
+
+For your platform, make these explicit.
+
+Example:
+
+```text
+DC-001 — Multi-DC Processing
+
+The application shall support active processing from both DC1 and DC2.
+
+Requirements:
+
+1. Multiple pods may process concurrently.
+2. The same business transaction shall not produce duplicate
+   business effects.
+3. Work ownership shall be durable.
+4. DC failure shall allow recoverable work to be processed by
+   the surviving DC.
+5. Storage failure shall not cause uncontrolled retry loops.
+6. Processing state shall remain recoverable.
+7. Cross-DC processing behavior shall be deterministic.
+```
+
+---
+
+# 17. Observability Requirements
+
+Define what must be observable.
+
+```text
+OBS-001
+
+Every business transaction shall have:
+
+Transaction ID
+Correlation ID
+File ID
+Processing ID
+
+The platform shall expose:
+
+Processing status
+Failure reason
+Retry count
+Processing duration
+Current owner
+Last processing timestamp
+
+Logs shall not expose sensitive financial information unnecessarily.
+```
+
+---
+
+# 18. Acceptance Criteria
+
+Acceptance criteria are the most important section for AI-generated tests.
+
+Use **Given / When / Then**.
+
+Example:
+
+```text
+AC-001
+
+Given:
+A valid prefund file exists.
+
+When:
+The file is submitted.
+
+Then:
+The file is registered successfully.
+
+And:
+A unique File ID is generated.
+
+And:
+The file state becomes REGISTERED.
+```
+
+Negative scenario:
+
+```text
+AC-002
+
+Given:
+The same file has already been processed.
+
+When:
+The file is submitted again.
+
+Then:
+The platform shall identify it as duplicate.
+
+And:
+No duplicate transaction shall be created.
+
+And:
+No duplicate reservation request shall be sent.
+```
+
+Recovery:
+
+```text
+AC-003
+
+Given:
+A transaction is persisted.
+
+When:
+The application terminates before reservation publication.
+
+Then:
+The transaction shall remain recoverable.
+
+And:
+A recovery process shall eventually publish the reservation request.
+
+And:
+Only one effective reservation request shall be processed.
+```
+
+---
+
+# 19. Test Scenario Specification
+
+Every major requirement should contain test scenarios.
+
+Use:
+
+```text
+Test ID:
+Requirement:
+Scenario:
+Precondition:
+Action:
+Expected Result:
+Business State:
+Database State:
+Message:
+File:
+Audit:
+```
+
+Example:
+
+```text
+TC-001
+
+Requirement:
+FR-001
+
+Scenario:
+New valid prefund file
+
+Precondition:
+No existing registration.
+
+Action:
+Place valid file into inbound storage.
+
+Expected:
+File registered.
+
+Business State:
+REGISTERED
+
+Database:
+One file record.
+
+Message:
+No reservation message yet.
+
+Audit:
+Registration recorded.
+```
+
+---
+
+# 20. Requirement Traceability
+
+Maintain a master matrix.
+
+```text
+| Requirement | Design | Code | Test | Status |
+|-------------|--------|------|------|--------|
+| FR-001 | ARCH-02 | FileService.cs | TC-001 | VERIFIED |
+| FR-002 | ARCH-02 | Validator.cs | TC-002 | VERIFIED |
+| BR-001 | DATA-01 | DuplicateCheck.cs | TC-003 | VERIFIED |
+```
+
+The AI agent must update this after implementation.
+
+---
+
+# 21. Requirement IDs Must Be Stable
+
+Never change:
+
+```text
+BR-001
+```
+
+to:
+
+```text
+BR-020
+```
+
+because requirements were reordered.
+
+AI agents should use the ID as the permanent traceability key.
+
+---
+
+# 22. Separate Business Requirements from Technical Design
+
+Recommended repository:
+
+```text
+docs/
+├── requirements/
+│   ├── business-requirements.md
+│   ├── functional-requirements.md
+│   ├── business-rules.md
+│   ├── workflows.md
+│   ├── state-machines.md
+│   ├── api-requirements.md
+│   ├── integration-requirements.md
+│   ├── security-requirements.md
+│   ├── recovery-requirements.md
+│   └── acceptance-criteria.md
+│
+├── architecture/
+│   ├── architecture.md
+│   ├── system-design.md
+│   ├── data-architecture.md
+│   ├── integration-architecture.md
+│   ├── deployment-architecture.md
+│   └── multi-dc-architecture.md
+│
+├── testing/
+│   ├── test-strategy.md
+│   ├── functional-test-matrix.md
+│   └── traceability-matrix.md
+│
+└── verification/
+    └── business-requirements-verification-report.md
+```
+
+For a smaller repository, these can initially be consolidated into fewer documents.
+
+---
+
+# 23. Recommended Requirement Hierarchy
+
+Use this hierarchy:
+
+```text
+Business Capability
+       ↓
+Business Requirement
+       ↓
+Functional Requirement
+       ↓
+Business Rule
+       ↓
+Workflow
+       ↓
+State Transition
+       ↓
+Acceptance Criteria
+       ↓
+Test Scenario
+       ↓
+Implementation
+```
+
+Example:
+
+```text
+Capability:
+ACH Prefunding
+
+BR-001:
+Prefund files must be processed.
+
+FR-001:
+Register incoming prefund file.
+
+BRULE-001:
+Duplicate files must not be processed.
+
+WF-001:
+Prefund processing workflow.
+
+STATE-001:
+RECEIVED → REGISTERED → VALIDATED → PROCESSING → COMPLETED.
+
+AC-001:
+Valid file is registered.
+
+TC-001:
+Submit valid file and verify registration.
+
+Implementation:
+PrefundFileProcessor
+FileRepository
+PrefundValidator
+```
+
+---
+
+# 24. AI-Friendly Writing Rules
+
+When writing requirements for AI coding agents:
+
+### Do
+
+Use:
+
+```text
+shall
+must
+given
+when
+then
+if
+otherwise
+only when
+before
+after
+until
+```
+
+### Avoid
+
+```text
+etc.
+and so on
+as appropriate
+if necessary
+normally
+typically
+handle errors
+process efficiently
+support scalability
+securely process
+```
+
+These words force the AI to guess.
+
+---
+
+# 25. Explicitly Define Ambiguity
+
+If business behavior is unknown, write:
+
+```text
+OPEN-QUESTION-001
+
+Question:
+What should happen when settlement arrives before prefund
+processing completes?
+
+Options:
+
+A. Reject settlement.
+B. Hold settlement in WAITING_FOR_PREFUND.
+C. Process settlement independently.
+
+Decision:
+B
+
+Decision Owner:
+Business
+
+Decision Date:
+YYYY-MM-DD
+```
+
+Never allow the AI agent to silently invent the answer.
+
+---
+
+# 26. Explicitly Define "Out of Scope"
+
+This is extremely valuable.
+
+Example:
+
+```text
+OUT-001
+
+The platform shall not modify external IBM MQ infrastructure.
+
+OUT-002
+
+The platform shall not modify external payment processor systems.
+
+OUT-003
+
+The platform shall not perform settlement reconciliation against
+systems not explicitly defined in this specification.
+```
+
+This prevents AI agents from expanding the implementation unnecessarily.
+
+---
+
+# 27. Definition of Done
+
+Each requirement should have a definition of done.
+
+```text
+Requirement is DONE only when:
+
+[ ] Requirement implemented
+[ ] Business rules implemented
+[ ] State transitions implemented
+[ ] Error scenarios implemented
+[ ] Security verified
+[ ] Recovery behavior implemented
+[ ] Automated test implemented
+[ ] Test passes
+[ ] Build passes
+[ ] Relevant documentation updated
+[ ] Traceability matrix updated
+```
+
+---
+
+# 28. AI Implementation Instruction
+
+Place the following instruction at the beginning of the requirements repository.
+
+## AI REQUIREMENT IMPLEMENTATION CONTRACT
+
+You are implementing an existing enterprise application.
+
+For every requirement:
+
+1. Read the complete requirement.
+2. Read related requirements.
+3. Read referenced design documents.
+4. Search the repository for existing implementation.
+5. Determine whether the requirement is:
+
+   * Fully implemented
+   * Partially implemented
+   * Incorrectly implemented
+   * Not implemented
+   * Unverifiable
+6. Do not assume similarly named code satisfies the requirement.
+7. Trace actual executable behavior.
+8. Identify the smallest safe implementation change.
+9. Implement the missing functionality.
+10. Implement/update automated tests.
+11. Execute the tests.
+12. Execute the applicable build.
+13. Fix failures introduced by the change.
+14. Re-run validation.
+15. Update traceability.
+16. Update architecture/design documents if the implementation changed architecture.
+17. Update the verification report.
+
+Never:
+
+* invent business behavior
+* silently change requirements
+* disable tests
+* skip failing tests
+* fabricate test results
+* fabricate build results
+* make unrelated refactoring
+* mark a requirement verified without evidence.
+
+If the requirement is ambiguous, identify the ambiguity and do not invent business behavior.
+
+---
+
+# 29. AI Verification Contract
+
+After implementation, independently re-evaluate the requirement.
+
+Do not trust your own implementation.
+
+Perform a second pass:
+
+```text
+Requirement
+     ↓
+Expected Behavior
+     ↓
+Actual Code
+     ↓
+Actual Runtime/Test Behavior
+     ↓
+Evidence
+     ↓
+Verified / Gap
+```
+
+A requirement is:
+
+### VERIFIED
+
+Only when implementation and test evidence demonstrate the required behavior.
+
+### IMPLEMENTED_NOT_VERIFIED
+
+Code exists but execution could not be validated.
+
+### PARTIAL
+
+Some acceptance criteria pass and others fail.
+
+### FAILED
+
+Implementation does not satisfy the requirement.
+
+---
+
+# 30. Recommended Document Metadata
+
+Every document should start with:
+
+```text
+Document:
+Version:
+Status:
+Owner:
+Last Updated:
+Effective Date:
+Related Documents:
+```
+
+Example:
+
+```text
+Document: Business Requirements Specification
+Version: 1.4
+Status: Approved
+Owner: Payments Product Team
+Last Updated: 2026-09-10
+```
+
+---
+
+# 31. Versioning
+
+Business requirements should be versioned.
+
+When changing a requirement:
+
+```text
+BR-001
+Version: 2
+
+Change:
+Duplicate settlement behavior changed from REJECTED
+to WAITING_FOR_RECONCILIATION.
+
+Reason:
+Business reconciliation requirement updated.
+
+Impact:
+SettlementProcessor
+State Machine
+Functional Tests
+Operations Dashboard
+```
+
+Do not silently edit a requirement that materially changes existing behavior.
+
+---
+
+# 32. Best Overall Format
+
+For AI coding projects, the ideal requirement should look like:
+
+```text
+ID
+ ↓
+Business Intent
+ ↓
+Actor
+ ↓
+Trigger
+ ↓
+Preconditions
+ ↓
+Inputs
+ ↓
+Business Rules
+ ↓
+Processing Steps
+ ↓
+State Changes
+ ↓
+Outputs
+ ↓
+Exceptions
+ ↓
+Retry
+ ↓
+Recovery
+ ↓
+Security
+ ↓
+Audit
+ ↓
+Observability
+ ↓
+Performance
+ ↓
+Dependencies
+ ↓
+Acceptance Criteria
+ ↓
+Test Scenarios
+ ↓
+Related Requirements
+```
+
+This format minimizes AI interpretation and maximizes implementation/test traceability.
+
+### My recommendation for your platform
+
+For the ACH prefund/settlement application, I would **not put everything into one enormous BRD**. Use a small set of linked documents:
+
+```text
+docs/
+├── requirements/
+│   ├── 01-business-requirements.md
+│   ├── 02-functional-requirements.md
+│   ├── 03-business-rules.md
+│   ├── 04-workflows-and-state-machines.md
+│   ├── 05-integration-requirements.md
+│   ├── 06-security-requirements.md
+│   └── 07-recovery-and-multi-dc-requirements.md
+│
+├── architecture/
+│   ├── system-architecture.md
+│   ├── data-architecture.md
+│   ├── messaging-architecture.md
+│   └── deployment-multi-dc.md
+│
+├── testing/
+│   └── requirements-test-matrix.md
+│
+└── verification/
+    └── implementation-verification-report.md
+```
+
+The **single most important principle** is this:
+
+> **Every requirement should have explicit acceptance criteria, and every acceptance criterion should have at least one executable test.**
+
+That creates a chain an AI coding agent can reliably follow:
+
+**Requirement → Acceptance Criteria → Code → Test → Build → Evidence → Verified**
+
+For your use case, I would also add a **machine-readable YAML/JSON representation of each requirement** alongside the human-readable Markdown. That makes automated requirement parsing, traceability, gap detection, and AI-driven implementation significantly more reliable.
