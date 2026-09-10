@@ -1,0 +1,1456 @@
+For enterprise application triaging, I recommend keeping the runtime log payload small and structured, while maintaining a richer error catalog containing the remediation guidance. This avoids repeating large messages in every log entry while still giving operations/AI tools enough information to diagnose the issue.
+
+Use this as an implementation prompt.
+
+Enterprise Logging, Exception Handling & Application Triaging Prompt
+
+1. Objective
+
+Implement a standardized, enterprise-grade logging and exception-handling framework across the application to support:
+
+* application instrumentation
+* production troubleshooting
+* incident triage
+* root-cause analysis
+* operational dashboards
+* distributed tracing
+* multi-data-center troubleshooting
+* automated alerting
+* AI-assisted incident analysis
+* remediation guidance
+
+The implementation must produce structured, consistent, actionable logs without excessive logging or exposure of sensitive information.
+
+The design must work consistently across:
+
+* ASP.NET Core APIs
+* BackgroundService workers
+* database operations
+* IBM MQ
+* Kafka
+* HTTP integrations
+* file processing
+* storage
+* scheduled jobs
+* React/API boundary
+* Kubernetes/OpenShift
+* multi-data-center deployments.
+
+⸻
+
+2. Core Design Principle
+
+Every significant exception or operational failure must answer these questions:
+
+WHAT happened?
+WHERE did it happen?
+WHY did it happen?
+WHAT was affected?
+WHAT is the current state?
+WHAT should be done?
+
+Minimum triage chain:
+
+Error Code
+    ↓
+Source
+    ↓
+Target
+    ↓
+Operation
+    ↓
+Root Cause
+    ↓
+Impact
+    ↓
+Current State
+    ↓
+Recommended Action
+
+Do not require an operator to interpret a raw stack trace to understand the business impact.
+
+⸻
+
+3. Minimal Runtime Log Contract
+
+Every ERROR/WARN log related to a failure should contain the following structured fields.
+
+Required
+
+timestamp
+level
+errorCode
+message
+application
+component
+environment
+dataCenter
+operation
+source
+target
+correlationId
+traceId
+spanId
+rootCause
+impact
+action
+status
+
+Where applicable:
+
+transactionId
+fileId
+batchId
+messageId
+requestId
+retryCount
+attempt
+durationMs
+exceptionType
+
+Do not add business-sensitive information unless explicitly required.
+
+⸻
+
+4. Standard Log Schema
+
+Implement a common structured logging model.
+
+Example:
+
+{
+  "timestamp": "2026-09-10T15:22:31.123Z",
+  "level": "ERROR",
+  "errorCode": "MQ-001",
+  "message": "Reservation request could not be published",
+  "application": "ach-processing",
+  "component": "PrefundProcessor",
+  "environment": "production",
+  "dataCenter": "DC1",
+  "operation": "PublishReservationRequest",
+  "source": {
+    "type": "Application",
+    "name": "PrefundProcessor",
+    "component": "ReservationPublisher"
+  },
+  "target": {
+    "type": "IBM_MQ",
+    "name": "RESERVATION.REQUEST",
+    "host": "mq-endpoint"
+  },
+  "correlationId": "CORR-123",
+  "traceId": "abc123",
+  "spanId": "def456",
+  "transactionId": "TX-123",
+  "fileId": "FILE-456",
+  "rootCause": "MQ connection timeout",
+  "impact": "Reservation request remains pending",
+  "action": "Retry publication after MQ recovery",
+  "status": "RETRY_PENDING",
+  "retryCount": 2,
+  "exceptionType": "TimeoutException",
+  "durationMs": 10021
+}
+
+The runtime log should remain compact.
+
+⸻
+
+5. Error Code Standard
+
+Every known application failure must have a predefined error code.
+
+Do NOT generate arbitrary error codes in individual classes.
+
+Create a centralized error catalog.
+
+Recommended format:
+
+<DOMAIN>-<NUMBER>
+
+Examples:
+
+FILE-001
+FILE-002
+PREFUND-001
+PREFUND-002
+SETTLE-001
+SETTLE-002
+DB-001
+DB-002
+MQ-001
+MQ-002
+KAFKA-001
+KAFKA-002
+STORAGE-001
+AUTH-001
+AUTH-002
+API-001
+CONFIG-001
+VALIDATION-001
+RECOVERY-001
+SYSTEM-001
+
+Error codes must be:
+
+* unique
+* stable
+* documented
+* searchable
+* machine-readable
+* reusable.
+
+Never reuse an error code for a materially different failure.
+
+⸻
+
+6. Error Catalog
+
+Create a centralized error catalog.
+
+Example:
+
+public sealed record ErrorDefinition(
+    string Code,
+    string Description,
+    string Category,
+    string Severity,
+    string RootCauseHint,
+    string Impact,
+    string RecommendedAction);
+
+Example definition:
+
+Code:
+MQ-001
+Description:
+Reservation request publication failed.
+Category:
+INTEGRATION
+Severity:
+ERROR
+RootCauseHint:
+IBM MQ endpoint unavailable or connection timed out.
+Impact:
+Reservation request remains pending.
+RecommendedAction:
+Verify MQ connectivity and queue availability.
+Allow configured retry policy to execute.
+Escalate if retry threshold is exceeded.
+
+⸻
+
+7. Error Catalog Fields
+
+Every predefined error must contain:
+
+Field	Purpose
+ErrorCode	Stable machine-readable identifier
+Title	Short operational description
+Category	Functional/DB/MQ/etc.
+Severity	INFO/WARN/ERROR/CRITICAL
+Source	Component that detected the issue
+Target	Dependency affected
+RootCauseHint	Likely cause
+Impact	Business/technical impact
+Action	Immediate remediation
+FocusArea	Where engineers should investigate
+Retryable	Whether retry is allowed
+RecoveryStrategy	How recovery occurs
+Alertable	Whether alert should be generated
+Documentation	Link/reference to troubleshooting guidance
+
+⸻
+
+8. Source and Target
+
+Always distinguish source from target.
+
+Examples:
+
+Source:
+PrefundProcessor
+Target:
+IBM MQ / Reservation.Request
+Source:
+SettlementFileProcessor
+Target:
+PostgreSQL / SettlementTransaction
+Source:
+React UI
+Target:
+POST /api/prefund
+Source:
+Application Pod DC1
+Target:
+DC1 NFS Storage
+
+For internal operations:
+
+sourceType
+sourceName
+sourceComponent
+
+For external dependencies:
+
+targetType
+targetName
+targetOperation
+
+Do not log credentials, tokens, connection strings, or secrets.
+
+⸻
+
+9. Root Cause
+
+The rootCause field must describe the most useful known cause.
+
+Good:
+
+PostgreSQL connection pool exhausted.
+
+Good:
+
+IBM MQ connection timed out while publishing reservation request.
+
+Good:
+
+Settlement transaction could not be matched to an existing prefund transaction.
+
+Bad:
+
+Something went wrong.
+
+Bad:
+
+Exception occurred.
+
+Bad:
+
+NullReferenceException.
+
+The exception type may be included separately, but it is not a sufficient root cause.
+
+⸻
+
+10. Root Cause Certainty
+
+Do not claim an unverified root cause as fact.
+
+Support:
+
+rootCause
+rootCauseType
+rootCauseConfidence
+
+Example:
+
+rootCauseType: DATABASE_TIMEOUT
+rootCauseConfidence: CONFIRMED
+
+or:
+
+rootCauseType: CONNECTION_FAILURE
+rootCauseConfidence: SUSPECTED
+
+Allowed values:
+
+CONFIRMED
+SUSPECTED
+UNKNOWN
+
+If the true root cause is unavailable, use:
+
+rootCause: "Unable to determine from application evidence"
+rootCauseConfidence: UNKNOWN
+
+⸻
+
+11. Business Impact
+
+Every significant failure must explain its impact.
+
+Examples:
+
+impact:
+"Reservation request remains pending and requires retry."
+impact:
+"Settlement transaction is not completed."
+impact:
+"File processing stopped before transaction persistence."
+impact:
+"User request rejected; no business state was changed."
+
+Avoid vague statements such as:
+
+impact:
+"Processing failed."
+
+⸻
+
+12. Remediation / Action
+
+Every known failure should contain an actionable recommendation.
+
+Example:
+
+action:
+"Verify IBM MQ connectivity and queue availability. Retry automatically.
+Escalate if retry threshold is exceeded."
+
+The action should tell the operator or developer:
+
+1. What to check.
+2. Where to check.
+3. What recovery mechanism exists.
+4. When escalation is required.
+
+⸻
+
+13. Focus Area
+
+Add a short focusArea to accelerate triage.
+
+Examples:
+
+focusArea: DATABASE_CONNECTION_POOL
+focusArea: IBM_MQ_CONNECTIVITY
+focusArea: KAFKA_CONSUMER
+focusArea: FILE_INTEGRITY
+focusArea: BUSINESS_VALIDATION
+focusArea: AUTHORIZATION
+focusArea: STORAGE_AVAILABILITY
+focusArea: MEMORY_PRESSURE
+focusArea: THREAD_POOL
+focusArea: MULTI_DC_COORDINATION
+focusArea: CONFIGURATION
+
+This should allow an operations dashboard to group failures immediately.
+
+⸻
+
+14. Error Categories
+
+Use a predefined category list.
+
+VALIDATION
+BUSINESS
+DATABASE
+MESSAGING
+MQ
+KAFKA
+HTTP
+STORAGE
+FILE
+SECURITY
+AUTHENTICATION
+AUTHORIZATION
+CONFIGURATION
+RESOURCE
+MEMORY
+CONCURRENCY
+TIMEOUT
+RECOVERY
+MULTI_DC
+SYSTEM
+UNKNOWN
+
+Do not allow every developer to invent new categories.
+
+⸻
+
+15. Severity
+
+Use a controlled severity model.
+
+INFO
+
+Expected operational event.
+
+WARN
+
+Unexpected condition that does not currently prevent successful processing.
+
+ERROR
+
+Operation failed but recovery may be possible.
+
+CRITICAL
+
+Business processing or system availability is seriously compromised and requires immediate attention.
+
+Do not log normal retry attempts as CRITICAL.
+
+⸻
+
+16. Exception Handling Rules
+
+Implement centralized exception handling.
+
+For ASP.NET Core:
+
+Request
+ ↓
+Middleware
+ ↓
+Controller
+ ↓
+Application Service
+ ↓
+Domain
+
+Unhandled exceptions should ultimately be translated into a standardized error response.
+
+For BackgroundService:
+
+Worker
+ ↓
+Operation
+ ↓
+Exception Handler
+ ↓
+Structured Log
+ ↓
+Retry / Recovery / Dead Letter
+
+Do not allow exceptions to disappear silently.
+
+Do not blindly catch:
+
+catch (Exception)
+{
+}
+
+⸻
+
+17. Exception Classification
+
+Create application-specific exception types where useful.
+
+Examples:
+
+BusinessException
+ValidationException
+DuplicateBusinessException
+ResourceUnavailableException
+DependencyTimeoutException
+MessagePublishException
+FileProcessingException
+DataIntegrityException
+AuthorizationException
+ConfigurationException
+
+Avoid creating dozens of unnecessary exception types.
+
+Use exception types when they materially affect:
+
+* handling
+* retry
+* status
+* alerting
+* business outcome.
+
+⸻
+
+18. Retryable vs Non-Retryable
+
+Every known exception should be classified.
+
+Retryable:
+DB connection timeout
+MQ unavailable
+Kafka temporary failure
+HTTP 503
+Storage unavailable
+Non-Retryable:
+Invalid file format
+Invalid business rule
+Authorization failure
+Malformed request
+Amount mismatch
+Duplicate business transaction
+
+Do not retry business validation failures indefinitely.
+
+⸻
+
+19. Retry Logging
+
+For retryable failures include:
+
+retryable
+retryCount
+maxRetries
+nextRetryAt
+retryStrategy
+
+Example:
+
+{
+  "errorCode": "MQ-001",
+  "retryable": true,
+  "retryCount": 2,
+  "maxRetries": 5,
+  "retryStrategy": "EXPONENTIAL_BACKOFF"
+}
+
+Do not log every retry at ERROR if it is an expected transient condition.
+
+Recommended:
+
+First failure → WARN
+Repeated failure → WARN
+Retry exhausted → ERROR
+Business impact/critical outage → CRITICAL
+
+⸻
+
+20. Correlation and Distributed Tracing
+
+Every request/work item must propagate:
+
+correlationId
+traceId
+spanId
+
+Business workflows should additionally carry:
+
+transactionId
+fileId
+batchId
+messageId
+
+Example:
+
+Correlation ID:
+CORR-123
+Trace ID:
+TRACE-456
+Transaction ID:
+TX-789
+File ID:
+FILE-001
+
+These identifiers must remain consistent across:
+
+React
+ ↓
+API
+ ↓
+Background Worker
+ ↓
+Database
+ ↓
+IBM MQ/Kafka
+ ↓
+Downstream Service
+ ↓
+Response
+
+⸻
+
+21. Logging Levels
+
+Standardize logging.
+
+DEBUG
+
+Detailed development diagnostics.
+
+Do not depend on DEBUG for production triage.
+
+INFO
+
+Major lifecycle events:
+
+File received
+File registered
+Transaction completed
+Message published
+Settlement completed
+
+WARN
+
+Recoverable/unexpected events:
+
+Retry
+Temporary dependency failure
+Delayed response
+Waiting for reconciliation
+
+ERROR
+
+Failed business/technical operation:
+
+File validation failed
+Message publish exhausted retries
+Database operation failed
+Settlement conversion failed
+
+CRITICAL
+
+System/business integrity or availability issue:
+
+Data corruption
+Unrecoverable processing failure
+Critical dependency outage
+Multi-DC consistency failure
+
+⸻
+
+22. Do Not Log Excessively
+
+Do not log:
+
+* entire request payloads
+* entire response payloads
+* complete files
+* passwords
+* tokens
+* API keys
+* connection strings
+* certificates/private keys
+* sensitive personal information
+* full payment data unless explicitly required
+* large message bodies.
+
+Do not log the same exception at every application layer.
+
+Preferred:
+
+Lower layer:
+add context and rethrow
+Boundary:
+log once with complete triage context
+
+⸻
+
+23. Exception Wrapping
+
+When adding context, preserve the original exception.
+
+Use:
+
+throw new MessagePublishException(
+    "Unable to publish reservation request.",
+    ex);
+
+Do not:
+
+throw new Exception(ex.Message);
+
+because this destroys valuable stack information.
+
+⸻
+
+24. Preserve Stack Trace
+
+Never use patterns that destroy the original stack trace.
+
+Use:
+
+throw;
+
+instead of:
+
+throw ex;
+
+when rethrowing the same exception.
+
+⸻
+
+25. Structured Logging
+
+Do not build logs using string concatenation.
+
+Avoid:
+
+_logger.LogError(
+    $"MQ failed for transaction {transactionId}");
+
+Prefer structured properties:
+
+_logger.LogError(
+    exception,
+    "MQ publish failed. ErrorCode={ErrorCode} TransactionId={TransactionId}",
+    errorCode,
+    transactionId);
+
+Prefer centralized structured logging extensions so all required fields are consistently emitted.
+
+⸻
+
+26. Sensitive Data Protection
+
+Before logging, classify data.
+
+Never expose:
+
+password
+access token
+refresh token
+API key
+private key
+connection string
+authorization header
+cookie
+secret
+
+Mask sensitive business data where required.
+
+Example:
+
+accountNumber: ****1234
+
+Do not place sensitive information inside:
+
+exception.Message
+rootCause
+action
+stackTrace
+
+unless explicitly approved.
+
+⸻
+
+27. API Error Response
+
+Return a consistent API error structure.
+
+Example:
+
+{
+  "errorCode": "PREFUND-002",
+  "message": "Prefund transaction could not be processed.",
+  "correlationId": "CORR-123",
+  "status": "FAILED"
+}
+
+Do not return:
+
+* stack traces
+* internal host names
+* SQL errors
+* connection strings
+* infrastructure credentials
+* internal implementation details.
+
+Detailed diagnostic information belongs in logs/traces, not the client response.
+
+⸻
+
+28. Health and Dependency Failures
+
+Health checks should provide enough information to determine:
+
+Application healthy?
+Database healthy?
+MQ healthy?
+Kafka healthy?
+Storage healthy?
+
+Do not expose secrets or sensitive dependency configuration.
+
+Dependency failures should be correlated with application errors.
+
+Example:
+
+Health:
+MQ = UNAVAILABLE
+Error:
+MQ-001
+Focus:
+IBM_MQ_CONNECTIVITY
+
+⸻
+
+29. Resource Exhaustion
+
+Predefine error codes for important resource failures.
+
+Examples:
+
+RESOURCE-001 Connection pool exhausted
+RESOURCE-002 Thread pool starvation
+RESOURCE-003 Memory pressure
+RESOURCE-004 File handle exhaustion
+RESOURCE-005 MQ connection pool exhausted
+RESOURCE-006 Kafka consumer unavailable
+
+Include:
+
+resourceType
+resourceLimit
+observedValue
+
+where safely available.
+
+Example:
+
+resourceType: DB_CONNECTION_POOL
+resourceLimit: 100
+observedValue: 100
+
+Do not log secrets or excessive diagnostic payloads.
+
+⸻
+
+30. Concurrency Failures
+
+Capture:
+
+errorCode
+operation
+resource
+owner
+attempt
+conflictType
+transactionId
+
+Example:
+
+errorCode: CONCURRENCY-001
+rootCause: "Transaction was claimed by another processing instance."
+impact: "Current processing attempt stopped without changing business state."
+focusArea: DISTRIBUTED_WORK_OWNERSHIP
+action: "Allow the owning worker to complete or retry after ownership expires."
+
+⸻
+
+31. Multi-DC Error Context
+
+For multi-data-center deployments include:
+
+dataCenter
+cluster
+namespace
+pod
+instance
+zone
+
+Example:
+
+dataCenter: DC1
+cluster: openshift-prod-01
+namespace: ach-processing
+pod: prefund-worker-7d9c
+
+Use infrastructure identifiers only where operationally useful.
+
+Never expose internal infrastructure details through external API responses.
+
+⸻
+
+32. File Processing Errors
+
+Predefine file-related errors.
+
+Example:
+
+FILE-001 Invalid file format
+FILE-002 Checksum mismatch
+FILE-003 Duplicate file
+FILE-004 Incomplete file
+FILE-005 File read failure
+FILE-006 File parse failure
+FILE-007 Output generation failure
+FILE-008 Output delivery failure
+
+Include:
+
+fileId
+fileType
+fileName
+recordCount
+processingStage
+
+Avoid logging the complete file contents.
+
+⸻
+
+33. Business Processing Errors
+
+Examples:
+
+PREFUND-001 Invalid transaction
+PREFUND-002 Duplicate transaction
+PREFUND-003 Reservation failed
+PREFUND-004 Reservation timeout
+SETTLE-001 Unknown prefund transaction
+SETTLE-002 Amount mismatch
+SETTLE-003 Duplicate settlement
+SETTLE-004 Invalid settlement state
+SETTLE-005 Settlement conversion failure
+
+Each must have a predefined remediation hint.
+
+⸻
+
+34. Error Code Example
+
+Create a catalog entry like:
+
+SETTLE-002
+Title:
+Settlement Amount Mismatch
+Category:
+BUSINESS
+Severity:
+ERROR
+Source:
+SettlementProcessor
+Target:
+PrefundTransaction
+RootCauseHint:
+Settlement amount differs from the original prefund amount.
+Impact:
+Settlement cannot be committed.
+FocusArea:
+SETTLEMENT_RECONCILIATION
+Retryable:
+NO
+RecoveryStrategy:
+RECONCILIATION_REQUIRED
+RecommendedAction:
+Compare prefund and settlement amounts using the business
+transaction identifier. Verify source file data and initiate
+business reconciliation if the mismatch is confirmed.
+Alertable:
+YES
+
+⸻
+
+35. Operational Triage Flow
+
+Design the logging system so an operator can perform:
+
+Error Code
+    ↓
+Find Error Definition
+    ↓
+Find Correlation ID
+    ↓
+Find Transaction/File
+    ↓
+Find Processing Stage
+    ↓
+Find Source → Target
+    ↓
+Determine Root Cause
+    ↓
+Determine Business Impact
+    ↓
+Execute Recommended Action
+    ↓
+Verify Recovery
+
+The log platform should make this possible without searching through hundreds of unrelated messages.
+
+⸻
+
+36. Error Aggregation
+
+Support aggregation by:
+
+errorCode
+component
+operation
+source
+target
+dataCenter
+environment
+status
+
+Example operational dashboard:
+
+MQ-001       42 occurrences
+DB-003       17 occurrences
+SETTLE-002    8 occurrences
+FILE-003      4 occurrences
+
+This allows operators to identify systemic failures rather than individual transactions.
+
+⸻
+
+37. First Occurrence / Last Occurrence
+
+Where metrics or aggregation are available, capture:
+
+firstOccurrence
+lastOccurrence
+occurrenceCount
+
+Do not duplicate huge log payloads unnecessarily.
+
+⸻
+
+38. Error Deduplication
+
+Do not allow one dependency failure to generate excessive duplicate logs.
+
+For example, if MQ is unavailable for five minutes:
+
+Avoid generating thousands of identical ERROR events.
+
+Use:
+
+errorCode
+dependency
+operation
+aggregation
+rate limiting
+
+while preserving individual business transaction traceability where necessary.
+
+⸻
+
+39. Instrumentation
+
+Use OpenTelemetry-compatible instrumentation where appropriate.
+
+Capture:
+
+traces
+metrics
+logs
+
+Correlate them using:
+
+traceId
+spanId
+correlationId
+
+Instrument:
+
+* HTTP
+* database
+* messaging
+* file processing
+* background workers
+* external dependencies
+* major business operations.
+
+Do not instrument every trivial method.
+
+Instrument meaningful business boundaries.
+
+⸻
+
+40. Business Event Logging
+
+Create structured lifecycle events for important operations.
+
+Example:
+
+FILE_RECEIVED
+FILE_REGISTERED
+FILE_VALIDATED
+TRANSACTION_CREATED
+RESERVATION_REQUESTED
+RESERVATION_COMPLETED
+SETTLEMENT_RECEIVED
+SETTLEMENT_MATCHED
+SETTLEMENT_COMPLETED
+OUTBOUND_FILE_CREATED
+OUTBOUND_FILE_SENT
+
+This allows a transaction timeline to be reconstructed.
+
+⸻
+
+41. Exception-to-Business-State Mapping
+
+Every important exception should define the resulting business state.
+
+Example:
+
+MQ-001
+↓
+RESERVATION_PENDING
+↓
+Retry
+MQ-002
+↓
+RESERVATION_FAILED
+↓
+Manual Review
+
+Do not allow an exception to leave business state ambiguous.
+
+⸻
+
+42. Recovery Hint
+
+Every recoverable error should define:
+
+recoveryAction
+
+Examples:
+
+RETRY
+WAIT_FOR_DEPENDENCY
+REPROCESS
+RECONCILE
+MANUAL_REVIEW
+FAIL_TRANSACTION
+FAIL_FILE
+FAIL_REQUEST
+
+This allows operations tooling to distinguish automatic from manual recovery.
+
+⸻
+
+43. AI-Friendly Error Contract
+
+The error catalog must be understandable by humans and AI systems.
+
+For every error provide:
+
+What happened?
+Why did it happen?
+What is affected?
+What should be checked?
+What can be retried?
+What should NOT be retried?
+What is the expected recovery?
+When should it be escalated?
+
+Example:
+
+Error:
+DB-003
+What:
+Transaction persistence failed.
+Why:
+Database connection timeout.
+Impact:
+Transaction has not been durably persisted.
+Check:
+Database connectivity and connection pool.
+Retry:
+YES
+Do Not:
+Create another transaction record without checking idempotency.
+Recovery:
+Retry persistence using the existing transaction ID.
+Escalate:
+After retry exhaustion or repeated occurrence.
+
+⸻
+
+44. Implementation Requirements
+
+Implement:
+
+Backend
+
+* centralized error catalog
+* standardized exception model
+* structured logging
+* correlation ID propagation
+* OpenTelemetry integration where applicable
+* global API exception middleware
+* background-worker exception handling
+* dependency failure classification
+* retry classification
+* standardized API error response
+* sensitive-data filtering
+* error-code documentation
+
+Frontend
+
+The React application should:
+
+* display user-safe error messages
+* display correlation ID when useful
+* never display stack traces
+* never expose internal infrastructure details
+* distinguish validation/business/system errors
+* provide retry where appropriate
+* avoid retrying non-retryable failures.
+
+⸻
+
+45. Required Error Catalog Location
+
+Create or use an appropriate repository location such as:
+
+src/
+  Common/
+    Errors/
+      ErrorCode.cs
+      ErrorDefinition.cs
+      ErrorCatalog.cs
+      ApplicationException.cs
+docs/
+  operations/
+    error-catalog.md
+    troubleshooting-guide.md
+
+Follow the existing project architecture if equivalent structures already exist.
+
+Do not create duplicate error catalogs.
+
+⸻
+
+46. Required Documentation
+
+Generate/update:
+
+docs/operations/error-catalog.md
+
+For every error:
+
+Error Code	Severity	Category	Root Cause	Impact	Focus Area	Action	Retry
+
+Also document:
+
+* logging schema
+* correlation strategy
+* exception handling
+* retry semantics
+* operational triage procedure
+* sensitive-data policy
+* escalation guidance.
+
+⸻
+
+47. Testing Requirements
+
+Add automated tests for:
+
+Error Mapping
+
+Verify:
+
+Exception → Error Code
+
+API
+
+Verify:
+
+Exception → HTTP Response
+
+Logging
+
+Verify important structured properties are emitted.
+
+Retry
+
+Verify:
+
+Retryable → Retry
+NonRetryable → No Retry
+
+Recovery
+
+Verify business state after failure.
+
+Security
+
+Verify:
+
+No password
+No token
+No secret
+No connection string
+No sensitive payload
+
+appears in logs.
+
+Correlation
+
+Verify:
+
+Request
+→ Service
+→ Worker
+→ Dependency
+
+retains correlation/trace information.
+
+⸻
+
+48. Required Validation
+
+After implementation:
+
+1. Build backend.
+2. Build frontend.
+3. Run unit tests.
+4. Run integration tests.
+5. Run functional tests.
+6. Run logging/exception tests.
+7. Validate structured log output.
+8. Validate sensitive-data filtering.
+9. Validate correlation IDs.
+10. Validate error catalog consistency.
+
+Do not claim success without executing the applicable validation.
+
+⸻
+
+49. Final Acceptance Criteria
+
+The implementation is complete only when:
+
+* [ ]	Known errors have predefined error codes.
+* [ ]	Error codes are unique.
+* [ ]	Errors contain source and target.
+* [ ]	Errors identify operation.
+* [ ]	Root cause is provided where known.
+* [ ]	Root-cause confidence is represented where necessary.
+* [ ]	Business/technical impact is explicit.
+* [ ]	Remediation/action is explicit.
+* [ ]	Focus area is explicit.
+* [ ]	Retryability is explicit.
+* [ ]	Recovery behavior is explicit.
+* [ ]	Correlation ID is propagated.
+* [ ]	Trace ID is propagated where applicable.
+* [ ]	Business identifiers are included where appropriate.
+* [ ]	Sensitive information is protected.
+* [ ]	API responses do not expose internal diagnostics.
+* [ ]	Background workers have controlled exception handling.
+* [ ]	Dependency failures are classified.
+* [ ]	Logs are structured.
+* [ ]	Duplicate/noisy logging is controlled.
+* [ ]	Error catalog is documented.
+* [ ]	Automated tests verify the framework.
+* [ ]	Build passes.
+* [ ]	Tests pass.
+
+⸻
+
+50. Final Principle
+
+The logging implementation must not merely answer:
+
+“What exception occurred?”
+
+It must answer:
+
+“What failed, where, between which components, why, what business state is affected, whether it can recover automatically, what the operator should investigate, and what action should be taken?”
+
+The target operational model is:
+
+ERROR CODE
+    +
+SOURCE → TARGET
+    +
+OPERATION
+    +
+CORRELATION
+    +
+BUSINESS CONTEXT
+    +
+ROOT CAUSE
+    +
+IMPACT
+    +
+FOCUS AREA
+    +
+REMEDIATION HINT
+    +
+RECOVERY STATE
+
+This information must be available consistently across APIs, background workers, files, databases, MQ/Kafka, storage, Kubernetes/OpenShift, and multi-data-center processing.
