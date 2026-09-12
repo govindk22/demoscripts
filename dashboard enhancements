@@ -1,0 +1,1402 @@
+Yes. With that clarification, I would **de-emphasize file count completely**. If production normally has **one Prefund file and one Settlement file per processing window**, the operational unit is really the **window's transaction/value workload**, not the number of files.
+
+The dashboard should therefore answer:
+
+> **For this processing window, how many Prefund requests/transactions came in, what $ value is involved, how quickly were they reserved, and did Settlement successfully consume/settle them?**
+
+The same dashboard can run with a **60-minute production window** and a **5–10 minute test window**.
+
+# 1. Revised Dashboard Hierarchy
+
+```text
+                         PROCESSING WINDOW
+                    10:00 – 10:10  [TEST]
+                              │
+              ┌───────────────┴────────────────┐
+              │                                │
+           PREFUND                         SETTLEMENT
+              │                                │
+      Requests / Transactions          Transactions
+      Request Amount                   Settlement Amount
+      Reserved Amount                  Matched Amount
+      Pending Amount                   Unmatched Amount
+      Failed Amount                    Mismatch Amount
+      Response Time                    Processing Time
+              │                                │
+              └───────────────┬────────────────┘
+                              │
+                       FUND RESERVATION
+                              │
+                Requests → Responses
+                Pending → Reserved
+                Retry → Timeout → Failed
+```
+
+**File = an input artifact.**
+**Processing Window = operational unit.**
+**Prefund transaction/request = primary business unit.**
+
+---
+
+# 2. Operations / Business Dashboard
+
+## Current Window — Primary Widget
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│ CURRENT PROCESSING WINDOW                                               │
+│ 10:00 – 10:10       TEST       ● ON TRACK                               │
+├────────────────┬────────────────┬────────────────┬──────────────────────┤
+│ PREFUND        │ SETTLEMENT     │ FUND RESERVATION│ OVERALL             │
+├────────────────┼────────────────┼────────────────┼──────────────────────┤
+│ Requests       │ Transactions   │ Requests        │ Status               │
+│ 18,452         │ 11,240         │ 18,452          │ ● ON TRACK           │
+│                │                │                 │                      │
+│ $24.8M         │ $15.2M         │ $24.8M          │ Pending: $0.8M       │
+└────────────────┴────────────────┴────────────────┴──────────────────────┘
+```
+
+### Primary KPIs
+
+| KPI                         | Meaning                                       |
+| --------------------------- | --------------------------------------------- |
+| **Prefund Requests**        | Number of reservation requests generated      |
+| **Prefund Transactions**    | Transactions requiring processing             |
+| **Prefund $ Value**         | Total amount requiring reservation            |
+| **Reserved $**              | Successfully reserved amount                  |
+| **Pending $**               | Amount awaiting reservation                   |
+| **Failed $**                | Amount associated with failed requests        |
+| **Settlement Transactions** | Transactions received for settlement          |
+| **Settlement $ Value**      | Settlement value                              |
+| **Settled $**               | Successfully settled value                    |
+| **Unmatched $**             | Settlement value without Prefund match        |
+| **Amount Mismatch $**       | Difference between expected and actual amount |
+| **Window Status**           | On Track / At Risk / Delayed / Failed         |
+
+---
+
+# 3. The most important Operations KPI row
+
+I would make this the main visual hierarchy:
+
+```text
+┌───────────────┬───────────────┬───────────────┬────────────────┐
+│ PREFUND       │ PREFUND       │ PREFUND       │ PREFUND        │
+│ Requests      │ Transactions  │ Request $     │ Reserved $     │
+│ 18,452        │ 18,452        │ $24.8M        │ $24.0M         │
+├───────────────┼───────────────┼───────────────┼────────────────┤
+│ Pending $     │ Failed $      │ Avg Response  │ P95 Response   │
+│ $0.8M         │ $0.0M         │ 420 ms        │ 850 ms         │
+└───────────────┴───────────────┴───────────────┴────────────────┘
+```
+
+Then a separate Settlement row:
+
+```text
+┌───────────────┬───────────────┬───────────────┬────────────────┐
+│ SETTLEMENT    │ SETTLEMENT    │ SETTLEMENT    │ SETTLEMENT     │
+│ Transactions  │ Received $    │ Settled $     │ Pending $      │
+│ 11,240        │ $15.2M        │ $15.2M        │ $0.0M          │
+├───────────────┼───────────────┼───────────────┼────────────────┤
+│ Unmatched     │ Mismatch $    │ Avg Processing│ P95 Processing  │
+│ 12            │ $25K          │ 480 ms        │ 920 ms         │
+└───────────────┴───────────────┴───────────────┴────────────────┘
+```
+
+This is considerably more meaningful than **Files Received = 1**.
+
+---
+
+# 4. Prefund Request Trend
+
+This should become the **primary trend graph**.
+
+### Widget: Prefund Requests by Window
+
+Track:
+
+* Prefund transaction/request count
+* Reserved
+* Pending
+* Failed
+
+In production this might be:
+
+```text
+08:00  09:00  10:00  11:00 ...
+```
+
+In test:
+
+```text
+08:00  08:05  08:10  08:15  08:20 ...
+```
+
+**Nothing else changes.**
+
+---
+
+# 5. Prefund Dollar Value Trend
+
+Keep transaction count and $ value as separate graphs.
+
+### Widget: Prefund Value by Window
+
+Show:
+
+* Requested $
+* Reserved $
+* Pending $
+* Failed $
+
+This is arguably the **most important business graph**.
+
+```text
+Window       Requested    Reserved    Pending
+08:00        $18.2M       $17.9M      $0.3M
+09:00        $24.8M       $24.0M      $0.8M
+10:00        $21.4M       $21.3M      $0.1M
+```
+
+---
+
+# 6. Prefund Response Time
+
+This deserves its own graph.
+
+### Track
+
+```text
+Prefund Request
+      ↓
+Reservation Request
+      ↓
+MQ Publish
+      ↓
+Reservation Response
+      ↓
+Prefund Transaction Completed
+```
+
+Metrics:
+
+* Average
+* P95
+* P99
+* Maximum
+* Timeout count
+* Retry count
+
+The most important metric is:
+
+**Reservation response time**
+
+because that's the actual business dependency.
+
+---
+
+# 7. Fund Reservation Dashboard
+
+Instead of treating MQ as a dashboard area, treat **Fund Reservation** as a business processing capability.
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│ FUND RESERVATION — CURRENT WINDOW                            │
+├──────────────┬──────────────┬──────────────┬─────────────────┤
+│ Requests     │ Reserved     │ Pending      │ Failed          │
+│ 18,452       │ 18,210       │ 220          │ 22              │
+├──────────────┼──────────────┼──────────────┼─────────────────┤
+│ Requested $  │ Reserved $   │ Pending $    │ Failed $        │
+│ $24.8M       │ $24.0M       │ $0.8M        │ $0.0M           │
+├──────────────┼──────────────┼──────────────┼─────────────────┤
+│ Avg Response │ P95          │ Retries      │ Timeouts        │
+│ 420 ms       │ 850 ms       │ 142          │ 18              │
+└──────────────┴──────────────┴──────────────┴─────────────────┘
+```
+
+---
+
+# 8. Settlement Dashboard
+
+Settlement becomes the downstream business confirmation of the Prefund lifecycle.
+
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│ SETTLEMENT — CURRENT WINDOW                                      │
+├─────────────────┬─────────────────┬──────────────────────────────┤
+│ Transactions    │ Settlement $    │ Status                       │
+│ 11,240          │ $15.2M           │ ● ON TRACK                   │
+├─────────────────┼─────────────────┼──────────────────────────────┤
+│ Matched         │ Unmatched       │ Amount Mismatch               │
+│ 11,228          │ 12              │ $25K                         │
+├─────────────────┼─────────────────┼──────────────────────────────┤
+│ Settled         │ Pending         │ Failed                       │
+│ 11,220          │ 8               │ 0                            │
+└─────────────────┴─────────────────┴──────────────────────────────┘
+```
+
+### Settlement metrics
+
+**Volume**
+
+* Transactions received
+* Transactions matched
+* Transactions settled
+* Pending
+* Failed
+* Unmatched
+
+**Value**
+
+* Settlement $
+* Matched $
+* Settled $
+* Pending $
+* Unmatched $
+* Mismatch $
+
+**Performance**
+
+* Avg processing time
+* P95
+* P99
+* Matching time
+* Conversion time
+* Outbound generation time
+* Outbound delivery time
+
+---
+
+# 9. Prefund → Settlement Business Flow
+
+This should be a very valuable Operations widget.
+
+```text
+                CURRENT WINDOW
+                     │
+                     ▼
+             PREFUND REQUESTS
+                18,452
+               $24.8M
+                     │
+                     ▼
+              RESERVATION
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+     Reserved      Pending      Failed
+     18,210          220           22
+     $24.0M         $0.8M          $0
+                     │
+                     ▼
+              SETTLEMENT
+               11,240
+                $15.2M
+                     │
+          ┌──────────┴──────────┐
+          ▼                     ▼
+       Matched               Unmatched
+       11,228                   12
+       $15.17M                 $25K
+```
+
+This gives Business a **true lifecycle view**, not just individual component statistics.
+
+---
+
+# 10. Processing Window Trend
+
+Now I would reduce the importance of file count and instead show:
+
+### Four primary trends
+
+1. **Prefund transaction/request count**
+2. **Prefund $ value**
+3. **Settlement transaction count**
+4. **Settlement $ value**
+
+Then overlay:
+
+* Failed
+* Pending
+* Processing time
+
+where appropriate.
+
+---
+
+# 11. Operations Dashboard — Revised Layout
+
+```text
+┌──────────────────────────────────────────────────────────────────────┐
+│                  ACH OPERATIONS / BUSINESS                           │
+│ Window: 10:00–10:10 | Interval: 10 min | Test | DC: All           │
+├──────────────────────────────────────────────────────────────────────┤
+│                         CURRENT WINDOW                               │
+├──────────────────────────────────────────────────────────────────────┤
+│                         PREFUND                                      │
+│ Requests │ Transactions │ Requested $ │ Reserved $ │ Pending $      │
+│ 18,452   │ 18,452       │ $24.8M       │ $24.0M     │ $0.8M          │
+│                                                                      │
+│ Failed $ │ Success % │ Avg Response │ P95 │ P99 │ Retry │ Timeout  │
+├──────────────────────────────────────────────────────────────────────┤
+│                        SETTLEMENT                                    │
+│ Transactions │ Settlement $ │ Matched │ Settled $ │ Pending │ Failed│
+│ 11,240       │ $15.2M        │ 11,228  │ $15.17M   │ 8       │ 0     │
+│                                                                      │
+│ Unmatched │ Mismatch $ │ Avg Time │ P95 │ P99                         │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│       PREFUND REQUEST / TRANSACTION COUNT BY WINDOW                  │
+│                                                                      │
+├──────────────────────────────────────────────────────────────────────┤
+│                                                                      │
+│                PREFUND $ VALUE BY WINDOW                             │
+│                                                                      │
+├──────────────────────────────────────┬───────────────────────────────┤
+│ SETTLEMENT TRANSACTION TREND         │ SETTLEMENT $ VALUE TREND       │
+├──────────────────────────────────────┼───────────────────────────────┤
+│ PROCESSING RESPONSE TIME             │ WINDOW SLA / HEALTH            │
+│ Avg / P95 / P99                      │ On Track / At Risk / Delayed  │
+├──────────────────────────────────────┼───────────────────────────────┤
+│ FUND RESERVATION                     │ PENDING / AMOUNT AT RISK       │
+│ Success / Pending / Retry / Timeout  │ Count + $                      │
+├──────────────────────────────────────┴───────────────────────────────┤
+│                  PREFUND → SETTLEMENT LIFECYCLE                      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# 12. Support Dashboard — Realigned
+
+Support should go deeper than Business.
+
+## Top KPIs
+
+```text
+┌──────────────┬──────────────┬──────────────┬──────────────┬──────────────┐
+│ Windows      │ Prefund      │ Reservation  │ Settlement   │ Amount       │
+│ At Risk      │ Failures     │ Pending      │ Exceptions   │ At Risk      │
+│ 2            │ 42           │ 220          │ 12           │ $1.1M        │
+└──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
+```
+
+Then:
+
+### Support priority order
+
+1. **Windows requiring attention**
+2. **Prefund reservation exceptions**
+3. **Settlement exceptions**
+4. **Response-time anomalies**
+5. **Pending aging**
+6. **Error trends**
+7. **Retry/timeout**
+8. **Transaction drill-down**
+
+---
+
+# 13. Support — Window Exception Queue
+
+```text
+Window      Type          Status       Transactions    $       Problem
+10:00       Prefund       AT RISK      220             $0.8M   Reservation timeout
+09:50       Settlement    DELAYED       12             $25K    Amount mismatch
+09:40       Prefund       FAILED        42             $0.3M   Validation
+```
+
+**Files should be available as metadata**, but not be the primary metric.
+
+---
+
+# 14. Support — Response Time
+
+This remains critical.
+
+| Window | Prefund Avg | Prefund P95 | Reservation P95 | Settlement P95 | Status |
+| ------ | ----------: | ----------: | --------------: | -------------: | ------ |
+| 08:00  |       420ms |       850ms |           700ms |          920ms | 🟢     |
+| 08:10  |       460ms |       920ms |           810ms |           1.1s | 🟢     |
+| 08:20  |       610ms |       1.25s |            1.3s |           1.5s | 🟡     |
+| 08:30  |        1.8s |        4.2s |            5.1s |           4.8s | 🔴     |
+
+Clicking the window:
+
+```text
+Window
+  ↓
+Prefund
+  ↓
+Reservation
+  ↓
+MQ Request
+  ↓
+MQ Response
+  ↓
+Database Update
+  ↓
+Settlement
+```
+
+---
+
+# 15. Support — Transaction Timeline
+
+Keep this as the deepest common drill-down.
+
+```text
+Transaction: TX-12345
+Window: 10:00–10:10
+Amount: $125,000
+
+PREFUND
+10:01:02  Request Created
+10:01:03  Transaction Persisted
+10:01:04  Reservation Request Sent
+10:01:05  MQ Accepted
+10:01:15  Reservation Timeout
+10:01:15  Retry #1
+10:01:25  Reservation Successful
+
+SETTLEMENT
+10:05:01  Settlement Received
+10:05:02  Prefund Matched
+10:05:03  Amount Validated
+10:05:04  Converted
+10:05:05  Outbound Generated
+10:05:06  Sent
+10:05:07  Completed
+```
+
+This gives Support complete lifecycle visibility.
+
+---
+
+# 16. What I would remove/de-emphasize
+
+Given your **one-file-per-window production model**, I would move these out of the primary dashboard:
+
+| Metric                | Treatment                |
+| --------------------- | ------------------------ |
+| File Count            | Secondary                |
+| Files/hour            | Secondary                |
+| File volume trend     | Secondary                |
+| File processing count | Drill-down               |
+| File watcher status   | Technical Support        |
+| NFS/S3 status         | Technical Support        |
+| MQ connection count   | Technical Support        |
+| Pod count             | Infrastructure dashboard |
+| CPU/Memory            | Infrastructure dashboard |
+
+And elevate:
+
+| Metric                        | Priority |
+| ----------------------------- | -------- |
+| **Prefund Requests**          | ⭐⭐⭐⭐⭐    |
+| **Prefund Transactions**      | ⭐⭐⭐⭐⭐    |
+| **Prefund $ Value**           | ⭐⭐⭐⭐⭐    |
+| **Reserved $**                | ⭐⭐⭐⭐⭐    |
+| **Pending $**                 | ⭐⭐⭐⭐⭐    |
+| **Settlement Transactions**   | ⭐⭐⭐⭐⭐    |
+| **Settlement $**              | ⭐⭐⭐⭐⭐    |
+| **Failed $**                  | ⭐⭐⭐⭐⭐    |
+| **Reservation Response Time** | ⭐⭐⭐⭐⭐    |
+| **P95/P99**                   | ⭐⭐⭐⭐⭐    |
+| **Settlement Matching**       | ⭐⭐⭐⭐     |
+| **Retries/Timeouts**          | ⭐⭐⭐⭐     |
+| **File Count**                | ⭐⭐       |
+
+### Final operating model
+
+**Production**
+
+```text
+1 Processing Window / Hour
+        ↓
+1 Prefund File
+        ↓
+N Prefund Transactions / Requests
+        ↓
+N Fund Reservations
+        ↓
+Settlement Transactions
+        ↓
+Settlement Completion
+```
+
+**Test**
+
+```text
+1 Processing Window / 5–10 Minutes
+        ↓
+1 Test Prefund File
+        ↓
+N Test Transactions / Requests
+        ↓
+N Fund Reservations
+        ↓
+Settlement Transactions
+        ↓
+Settlement Completion
+```
+
+This is the model I would use for the application as well as the dashboard: **the window is the time boundary, Prefund/Settlement transactions are the business workload, $ value is the business impact, and response time/failures/pending are the operational health indicators.**
+
+
+Prefund request volume by processing window
+
+Track Prefund transaction requests and their processing outcomes across windows.
+
+window	requests	reserved	pending	failed
+08:00	14,200	13,980	180	40
+08:10	15,800	15,540	210	50
+08:20	14,900	14,780	100	20
+08:30	17,600	17,350	210	40
+08:40	18,200	17,950	220	30
+08:50	16,900	16,780	100	20
+09:00	19,200	18,800	350	50
+
+
+2. Operations / Business Dashboard - Include failures and row for Settlement/Prefund
+
+This should be the executive/operational view.  
+
+Top row — Current Window
+┌─────────────────────────────────────────────────────────────────┐
+│ CURRENT PROCESSING WINDOW                                      │
+│ 10:00 – 10:10       Status: ON TRACK                            │
+├────────────┬────────────┬────────────┬────────────┬─────────────┤
+│ Files      │ Transactions│ Received $ │ Processed $│ Pending $   │
+│ 20         │ 29,692      │ $40.0M     │ $38.9M     │ $1.1M       │
+└────────────┴────────────┴────────────┴────────────┴─────────────┘
+Recommended KPI widgets
+Widget	Purpose
+Current Window	10:00–10:10 / production 10:00–11:00
+Window Status	On Track / At Risk / Delayed / Failed
+Files Received	File count
+Transactions Received	Transaction volume
+Received $ Value	Business value entering platform
+Processed $ Value	Successfully processed value
+Pending $ Value	Value still being processed
+Failed $ Value	Value associated with failures
+Window Processing Time	Avg / P95
+Fund Reservation Pending	Count + $ value
+
+4. File count trend
+
+This should be one of the primary graphs.
+
+File volume by processing window
+
+Compare prefund and settlement file volumes across each processing window.
+
+Prefund files
+Settlement files
+48121608:0008:1008:2008:3008:4008:5009:00
+
+In production the x-axis becomes:
+
+08:00
+09:00
+10:00
+11:00
+12:00
+...
+
+In testing:
+
+08:00
+08:10
+08:20
+08:30
+08:40
+...
+
+No dashboard code should change.
+
+5. Dollar-value trend
+
+I would make this a separate graph rather than combining it with file count because the scales are very different.
+
+ACH value by processing window
+
+Track the dollar value received and successfully processed in each window.
+
+Received value
+Processed value
+$11M$16.5M$22M$27.5M$33M08:0008:1008:2008:3008:4008:5009:00
+
+This immediately shows something like:
+
+File volume normal, but $ value suddenly increased
+
+which is operationally much more important than file count alone.
+
+3. Settlement window dashboard
+
+Settlement should have the same window model:
+
+Settlement Window
+       │
+       ├── Files Received
+       ├── Transactions
+       ├── Settlement $
+       │
+       ├── Matched to Prefund
+       ├── Unmatched
+       ├── Amount Mismatch
+       │
+       ├── Converted
+       ├── Sent
+       └── Completed
+
+Example:
+
+Window	Files	Transactions	Settlement Value	Completed	Pending	Failed
+10:00–10:10	8	11,240	$15.2M	7	1	0
+09:50–10:00	6	9,820	$12.8M	6	0	0
+09:40–09:50	7	10,450	$13.6M	6	0	1
+
+
+                    ACH FILE OPERATIONS
+       Window: 10 min (Test) / 60 min (Production)
+
+┌──────────────┬──────────────┬──────────────┬──────────────┐
+│ Files        │ Transactions │ Total Value  │ Processing   │
+│ Received     │ Received     │ Received     │ Status       │
+│     12       │    18,452    │   $24.8M     │   92%        │
+└──────────────┴──────────────┴──────────────┴──────────────┘
+
+              CURRENT PROCESSING WINDOW
+┌────────────────────────────────────────────────────────────┐
+│ Window        Files     Transactions      $ Value           │
+│ 10:00-10:10     12          18,452        $24.8M            │
+│ 09:50-10:00      9          14,820        $19.2M            │
+│ 09:40-09:50     11          17,201        $22.1M            │
+└────────────────────────────────────────────────────────────┘
+
+                 FILE VOLUME TREND
+       Files Received / Completed / Failed per Window
+
+                 $ VALUE TREND
+       Amount Received / Processed per Window
+
+                 PROCESSING TIME
+       Avg / P95 / P99 per Window
+
+                 FUND RESERVATION
+       Pending / Reserved / Failed / Retry
+	   
+5. Prefund vs Settlement
+Widget 3 — Processing Volume Comparison
+
+A side-by-side view:
+
+Window	Prefund Files	Prefund $	Settlement Files	Settlement $
+08:00	12	$21M	8	$16M
+09:00	18	$32M	11	$24M
+10:00	15	$28M	10	$22M
+
+This is especially useful because file count alone doesn't represent business load.
+	   
+	   
+Support Dashboard
+
+15. Support — response-time anomaly
+Widget 3 — Response Time by Window
+
+Support needs to identify abnormal windows:
+
+Window     Avg     P95     P99     Status
+08:00      420ms   850ms   1.2s     OK
+09:00      460ms   920ms   1.4s     OK
+10:00      610ms   1.25s   2.1s     ⚠
+11:00      1.8s    4.2s    8.1s     🔴
+
+Click → identify which processing stage caused the increase.
+
+2. Prefund processing statistics
+
+Graph: Prefund File Processing Trend
+
+Show over time:
+
+Files received
+Files successfully processed
+Files failed
+Files pending
+Prefund file processing trend
+
+Track prefund file volume and processing outcomes over time.
+
+Received
+Completed
+Failed
+Pending
+0816243209:0010:0011:0012:0013:00
+Prefund metrics
+Files received/hour
+Files completed/hour
+Transactions processed
+Total prefund amount
+Average processing time
+P95/P99 processing time
+Validation failures
+Duplicate files
+Parsing failures
+Reservation requests generated
+Reservation completion rate
+3. Settlement processing statistics
+
+Graph: Settlement File Processing Trend
+
+Track each settlement window independently.
+
+Settlement file processing trend
+
+Track settlement files processed across settlement windows.
+
+Received
+Completed
+Failed
+Pending
+0816243208:0010:0012:0014:0016:00
+Settlement metrics
+Settlement files received
+Settlement files completed
+Settlement files pending
+Settlement files failed
+Transactions settled
+Settlement amount
+Average processing time
+P95/P99 processing time
+Prefund-match success rate
+Unmatched transactions
+Amount mismatch
+Conversion failures
+Outbound file generation time
+Outbound delivery time
+
+For every drilldown of the processing record the dril down view should follow similar pattern
+16. Support — transaction timeline
+
+This is probably the single most valuable drill-down feature.
+
+Transaction: TX-12345
+Amount: $125,000
+Window: 10:00–10:10
+
+10:01:02  File Received
+10:01:03  File Validated
+10:01:04  Transaction Created
+10:01:05  Reservation Request Sent
+10:01:05  MQ Request Accepted
+10:01:15  Reservation Timeout
+10:01:15  Retry #1
+10:01:25  Reservation Successful
+10:01:26  Transaction Completed
+
+Support can answer exactly where the delay occurred.
+4. Processing response-time graphs
+
+I would make response/processing time a dedicated section, because support needs to immediately determine whether the platform is slowing down.
+
+Graph: Processing Response Time
+
+Track Average + P95 + P99 for:
+
+Prefund file processing
+Settlement file processing
+Fund reservation response
+MQ response
+Outbound file generation
+End-to-end transaction processing
+Processing response time
+
+Compare average and tail latency across the operational processing flow.
+
+Average
+P95
+P99
+06001,2001,8002,40009:0010:0011:0012:0013:00
+
+Important: Don't show only average response time. Averages can look healthy while a small percentage of transactions are taking several seconds/minutes. P95/P99 should be prominent.
+
+13. Support — Window Exception Queue
+Widget 1 — Windows Requiring Attention
+┌────────┬────────────┬──────────┬─────────┬──────────┬─────────────┐
+│ Window │ Type       │ Status   │ Files   │ $ Value  │ Problem     │
+├────────┼────────────┼──────────┼─────────┼──────────┼─────────────┤
+│ 10:00  │ Prefund    │ AT RISK  │ 12      │ $24M     │ MQ Timeout  │
+│ 09:00  │ Settlement │ DELAYED  │ 8       │ $18M     │ Unmatched   │
+│ 08:00  │ Prefund    │ FAILED   │ 2       │ $4M      │ Validation  │
+└────────┴────────────┴──────────┴─────────┴──────────┴─────────────┘
+
+Clicking the window should drill down:
+
+Window
+  ↓
+File
+  ↓
+Batch
+  ↓
+Transaction
+  ↓
+Processing Timeline
+  ↓
+Error
+  ↓
+Root Cause
+  ↓
+Recovery Action
+
+15. Support — response-time anomaly
+Widget 3 — Response Time by Window
+
+Support needs to identify abnormal windows:
+
+Window     Avg     P95     P99     Status
+08:00      420ms   850ms   1.2s     OK
+09:00      460ms   920ms   1.4s     OK
+10:00      610ms   1.25s   2.1s     ⚠
+11:00      1.8s    4.2s    8.1s     🔴
+
+Click → identify which processing stage caused the increase.
+
+For your **ACH prefund/settlement + multi-DC operations platform**, I would avoid a dashboard overloaded with generic CPU/memory charts. Ops/support users primarily need to answer:
+
+> **What is happening? What is stuck? What failed? Is money/business processing affected? Why? Where? What needs action?**
+
+## 1. Recommended Operations Dashboard
+
+I would structure it into **5 areas**.
+
+### A. Executive status strip
+
+At the top, use KPI cards:
+
+| KPI                      | What it tells Ops                |
+| ------------------------ | -------------------------------- |
+| **Files Received**       | Current workload                 |
+| **Files Processing**     | Active workload                  |
+| **Files Completed**      | Throughput                       |
+| **Files Failed**         | Immediate attention              |
+| **Transactions Pending** | Backlog                          |
+| **Transactions Failed**  | Business exceptions              |
+| **Amount Pending**       | Financial exposure               |
+| **Amount at Risk**       | Failed/unresolved amount         |
+| **Recovery Pending**     | Items waiting for retry/recovery |
+
+The two most valuable additions are **Pending Amount** and **Amount at Risk**. A count of 3 failed transactions isn't meaningful if they represent $300 versus $3M.
+
+---
+
+# 2. Processing Health
+
+### 1. Processing volume trend
+
+**Line chart**
+
+Show:
+
+```text
+Transactions
+  |
+  |             /\
+  |      /\    /  \__
+  |_____/  \__/_______
+       Time →
+```
+
+Metrics:
+
+* transactions received
+* transactions completed
+* transactions failed
+
+Prefer separate selectable series rather than putting everything on one graph by default.
+
+---
+
+### 2. Processing status distribution
+
+**Stacked bar**
+
+```text
+Today
+
+Prefund
+████████████████ Completed
+██ Pending
+█ Failed
+
+Settlement
+██████████████ Completed
+████ Pending
+█ Failed
+```
+
+This immediately tells Ops whether the platform is processing normally.
+
+---
+
+### 3. Processing latency
+
+**Line chart**
+
+Show:
+
+* average processing time
+* P95
+* P99
+
+for:
+
+* file registration
+* file validation
+* transaction processing
+* reservation
+* settlement
+* output generation
+
+This is much more useful than CPU utilization alone.
+
+---
+
+# 3. Exception / Triage Area
+
+This should probably be the **most prominent section**.
+
+### 4. Top errors by error code
+
+**Horizontal bar chart**
+
+Example:
+
+```text
+MQ-001                    █████████████ 42
+SETTLE-002                ████████     27
+DB-003                    █████         18
+FILE-003                  ████          12
+STORAGE-001               ██             6
+```
+
+Clicking `MQ-001` should drill into:
+
+```text
+Error Code: MQ-001
+Root Cause: MQ connection timeout
+Source: PrefundProcessor
+Target: IBM MQ
+Impact: Reservation pending
+Focus Area: IBM_MQ_CONNECTIVITY
+Recommended Action: Verify MQ connectivity...
+```
+
+This directly leverages the error-code model we discussed earlier.
+
+---
+
+### 5. Exceptions requiring attention
+
+Instead of just showing "Errors", create an **Attention Queue**.
+
+Columns:
+
+| Time  | Error      | Business Object | Impact              | DC  | State     | Action      |
+| ----- | ---------- | --------------- | ------------------- | --- | --------- | ----------- |
+| 10:42 | SETTLE-002 | TX-123          | Amount mismatch     | DC1 | Reconcile | Investigate |
+| 10:39 | MQ-001     | TX-456          | Reservation pending | DC2 | Retry     | Auto retry  |
+| 10:31 | FILE-003   | FILE-99         | Duplicate           | DC1 | Closed    | View        |
+
+This could become the **primary working area for support users**.
+
+---
+
+### 6. Error trend
+
+**Line chart**
+
+Show error count over time.
+
+Useful for identifying:
+
+* sudden MQ failures
+* DB problems
+* deployment-related problems
+* storage failures
+* recurring settlement issues.
+
+---
+
+# 4. Business Processing Area
+
+This is where your dashboard becomes more valuable than a generic application monitoring dashboard.
+
+### 7. Prefund vs Settlement
+
+Use a **stacked bar** or grouped bar:
+
+```text
+             Prefund     Settlement
+Received       120          115
+Completed      117          110
+Pending          2            3
+Failed           1            2
+```
+
+---
+
+### 8. Amount processing trend
+
+**Line chart**
+
+Show:
+
+```text
+Prefund Amount
+Settlement Amount
+Pending Amount
+Failed Amount
+```
+
+over the selected time range.
+
+This allows operations to immediately see:
+
+> "Transaction counts look normal, but pending dollar value is increasing."
+
+That's a much stronger operational signal.
+
+---
+
+### 9. Settlement reconciliation
+
+This is particularly important for your platform.
+
+Show:
+
+```text
+Matched
+Unmatched
+Amount Mismatch
+Duplicate
+Waiting for Prefund
+Completed
+```
+
+I'd make this one of the primary widgets.
+
+---
+
+# 5. Pipeline / Bottleneck Area
+
+### 10. Processing funnel
+
+A funnel is useful conceptually, although for implementation I would use horizontal bars/cards rather than a fancy visualization:
+
+```text
+Files Received             1,250
+        ↓
+Validated                  1,240
+        ↓
+Transactions Processed    25,430
+        ↓
+Reservation Requested     25,410
+        ↓
+Reservation Completed     25,380
+        ↓
+Settlement Matched        24,920
+        ↓
+Settlement Completed      24,880
+```
+
+This makes **where the backlog is occurring** immediately obvious.
+
+---
+
+### 11. Queue/backlog trend
+
+**Line chart**
+
+Track:
+
+* files waiting
+* transactions waiting
+* reservation pending
+* settlement pending
+* retry pending
+* reconciliation pending.
+
+The trend is more important than the current number.
+
+For example:
+
+```text
+Pending
+  |
+50|                /
+40|              /
+30|            /
+20|___________/
+10|
+  +----------------
+       Time
+```
+
+A steadily increasing backlog should be visually obvious.
+
+---
+
+# 6. Multi-DC Operations
+
+For your architecture, I'd definitely have a dedicated section.
+
+### 12. DC health
+
+Simple status cards:
+
+```text
+┌──────────────┐ ┌──────────────┐
+│ DC1          │ │ DC2          │
+│ HEALTHY      │ │ HEALTHY      │
+│ 4 Pods       │ │ 4 Pods       │
+│ 12 Processing│ │ 9 Processing │
+└──────────────┘ └──────────────┘
+```
+
+Don't make this merely infrastructure health.
+
+Include:
+
+* application health
+* DB connectivity
+* MQ connectivity
+* storage
+* processing backlog
+* active workers
+* failed workers.
+
+---
+
+### 13. DC processing distribution
+
+**Bar chart**
+
+```text
+DC1 █████████████████ 62%
+DC2 ██████████        38%
+```
+
+Useful for detecting unexpected workload imbalance.
+
+---
+
+### 14. Recovery / failover status
+
+Show:
+
+```text
+Active DC
+DC1
+
+Last Failover
+Sep 10 14:32
+
+Recovered Work
+128
+
+Recovery Pending
+4
+
+Ownership Conflicts
+0
+```
+
+For your platform, **Ownership Conflicts** is an especially valuable operational metric.
+
+---
+
+# 7. Infrastructure — Keep It Secondary
+
+Don't make infrastructure metrics the primary dashboard.
+
+Have a collapsible **Platform Health** section:
+
+```text
+CPU             62%
+Memory          71%
+DB Connections  58/100
+MQ Connections  12/20
+Kafka Lag       14
+Pod Restarts    2
+Storage         Healthy
+```
+
+Then provide drill-down.
+
+The business dashboard should not make an operator interpret:
+
+> CPU = 72%
+
+when the actual problem is:
+
+> Settlement backlog has increased from 20 to 2,000.
+
+---
+
+# 8. The Most Valuable Graph: Business Processing Timeline
+
+For a selected File/Transaction, show a timeline:
+
+```text
+10:01:02  File Received
+    ↓
+10:01:05  File Validated
+    ↓
+10:01:07  Transactions Persisted
+    ↓
+10:01:08  Reservation Requested
+    ↓
+10:01:09  MQ Published
+    ↓
+10:01:13  Reservation Response
+    ↓
+10:01:14  Reserved
+    ↓
+14:00:03  Settlement Received
+    ↓
+14:00:05  Settlement Matched
+    ↓
+14:00:06  Settlement Completed
+```
+
+If something failed:
+
+```text
+10:01:09  MQ-001
+           ↓
+           MQ timeout
+           ↓
+           Retry #1
+           ↓
+10:01:19  Retry succeeded
+```
+
+This is extremely useful for support.
+
+---
+
+# 9. "Why Is It Failing?" Panel
+
+I'd actually make this a first-class dashboard feature.
+
+When an operator selects an error:
+
+```text
+┌──────────────────────────────────────────────┐
+│ MQ-001 — Reservation Request Timeout         │
+├──────────────────────────────────────────────┤
+│ Occurrences       42                         │
+│ First Seen        10:02                      │
+│ Last Seen         10:42                      │
+│                                              │
+│ SOURCE                                        │
+│ PrefundProcessor                             │
+│                                              │
+│ TARGET                                        │
+│ IBM MQ / RESERVATION.REQUEST                 │
+│                                              │
+│ ROOT CAUSE                                    │
+│ MQ connection timeout                        │
+│                                              │
+│ IMPACT                                        │
+│ 42 reservations pending                      │
+│ $2.4M affected                               │
+│                                              │
+│ FOCUS AREA                                    │
+│ IBM_MQ_CONNECTIVITY                           │
+│                                              │
+│ ACTION                                        │
+│ Verify MQ connectivity. Automatic retry      │
+│ is currently active.                         │
+│                                              │
+│ STATUS                                        │
+│ ● RECOVERING                                 │
+└──────────────────────────────────────────────┘
+```
+
+This turns your logging/error model into an actual **support productivity tool**.
+
+---
+
+# 10. My Recommended MVP Dashboard
+
+Don't build 20 charts initially.
+
+I'd start with **10 highly valuable widgets**:
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ Files     Transactions    Pending $     Failed     At Risk│
+│  125          25,420        $4.2M          18        $1.1M │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│ Processing Volume / Trend                               │
+│ ──────────────────────────────────────────────────────  │
+│                                                         │
+├──────────────────────────┬──────────────────────────────┤
+│ Processing Status        │ Settlement Reconciliation    │
+│ Completed/Pending/Failed │ Matched/Unmatched/Mismatch   │
+├──────────────────────────┼──────────────────────────────┤
+│ Pending / Backlog Trend  │ Top Error Codes              │
+│                          │ MQ-001 █████                  │
+│                          │ DB-003 ███                    │
+├──────────────────────────┴──────────────────────────────┤
+│ ⚠ ATTENTION REQUIRED                                    │
+│                                                         │
+│ SETTLE-002  TX-123   Amount mismatch     $250K  DC1     │
+│ MQ-001      TX-456   Reservation pending  $80K   DC2     │
+│ FILE-003    FILE-99  Duplicate file              DC1     │
+├─────────────────────────────────────────────────────────┤
+│ DC1 ● Healthy       DC2 ● Healthy                       │
+│ DB ●  MQ ●  Kafka ●  Storage ●                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+### The key idea
+
+I would organize the entire dashboard around **four questions**:
+
+| Question                           | Dashboard capability                   |
+| ---------------------------------- | -------------------------------------- |
+| **Is the platform healthy?**       | DC/dependency health                   |
+| **Is business processing moving?** | volume, throughput, backlog            |
+| **What is wrong?**                 | error trends + attention queue         |
+| **What do I do?**                  | root cause + impact + remediation hint |
+
+And for your platform specifically, make **Pending Amount, Settlement Reconciliation, Error Code + Root Cause, Processing Backlog, and Multi-DC Ownership/Recovery** first-class metrics. Those will provide considerably more value to Ops/support than a dashboard dominated by generic infrastructure graphs.
+
+
+  BCBS Response Time dashboard
+
+
+
+  5. Dollar-value trend
+
+I would make this a separate graph rather than combining it with file count because the scales are very different.
+
+ACH value by processing window
+
+Track the dollar value received and successfully processed in each window.
+
+Received value
+Processed value
+$11M$16.5M$22M$27.5M$33M08:0008:1008:2008:3008:4008:5009:00
+
+This immediately shows something like:
+
+File volume normal, but $ value suddenly increased
+
+which is operationally much more important than file count alone.
