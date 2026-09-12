@@ -17,11 +17,8 @@ Every widget should be filterable by:
 | Window Start                  | 10:00                                             |
 | Window End                    | 11:00                                             |
 | Window Duration               | 60 min                                            |
-| Environment                   | PROD / TEST                                       |
-| Data Center                   | DC1 / DC2 / ALL                                   |
 | Processing Type               | PREFUND / SETTLEMENT                              |
 | Business Date/Settlement Date | 2026-09-12                                        |
-| Currency                      | USD                                               |
 | Status                        | ON_TRACK / AT_RISK / DELAYED / FAILED / COMPLETED |
 
 For testing, the window simply becomes:
@@ -74,7 +71,6 @@ These are the highest-value widgets.
 | Window ID           | Unique processing window              |
 | Start Time          | Window start                          |
 | End Time            | Window end                            |
-| Configured Duration | 60 / 10 / 5 min                       |
 | Elapsed Time        | Current elapsed time                  |
 | Remaining Time      | Remaining window time                 |
 | Status              | On Track / At Risk / Delayed / Failed |
@@ -95,33 +91,15 @@ Last activity: 10:31:42
 ```
 
 ---
+ 
 
-## O-B02 — Prefund Requests
-
-**Widget:** KPI card
-
-```text
-Prefund Requests
-18,452
-+8.4% vs previous window
-```
-
-Fields:
-
-* Request Count
-* Previous Window Count
-* Variance Count
-* Variance %
-* Current Window
-
----
-
-## O-B03 — Prefund Transaction Count
+## O-B03 — Transaction Count
 
 **Widget:** KPI card
 
 Fields:
-
+* Window
+* Type (Prefund/Settlement)
 * Transactions Received
 * Transactions Processed
 * Transactions Pending
@@ -135,7 +113,8 @@ Fields:
 **Widget:** KPI card
 
 Fields:
-
+* Window
+* Transaction Count
 * Requested Amount
 * Previous Window Amount
 * Variance $
@@ -186,7 +165,6 @@ I strongly recommend this table.
 
 | Metric       |  Prefund | Settlement |
 | ------------ | -------: | ---------: |
-| Requests     |   18,452 |          — |
 | Transactions |   18,452 |     11,240 |
 | Received $   |   $24.8M |     $15.2M |
 | Processed $  |   $24.0M |     $15.1M |
@@ -1132,18 +1110,19 @@ Fields:
 
 ---
 
-# 33. Support — Data Center Comparison
+# 33. Support — Data Center Comparison,
+Build metadata in audit table based on event and processing type and store include additional required to make the data useful.
 
-## S22 — DC Operational Comparison
+## S22 — DC Operational Comparison ,
 
-| Metric           |   DC1 |   DC2 |
+| Metric           |   DC1 |   DC2 |  % Diff | CN Avg Processing time | PI Avg Processing time
 | ---------------- | ----: | ----: |
-| Prefund Requests | 9,200 | 9,252 |
-| Pending          |    80 |   140 |
-| Pending $        | $0.3M | $0.5M |
-| Reservation P95  | 800ms |  1.4s |
-| Settlement P95   | 900ms |  1.6s |
-| Failures         |     4 |    18 |
+| Prefund Files    | 9,200 | 9,252 |
+| BCBS Requests    |    80 |   140 |
+| BCBS Responses   | 999   | 888   |
+| Settlement Files | 800   |  1    |
+| OMNI Publishing  |     4 |    18 |
+and etc , only by processing/event type and core .
 
 Useful for identifying a **DC-specific degradation**.
 
@@ -1427,7 +1406,7 @@ window	prefund	reservation	settlement
 
 ## 1. System Context
 
-Build a monitoring and support dashboard suite for an **ACH Prefund and Settlement processing engine**. The engine works as follows:
+Enrich both Business and operations dashboard suite for an **ACH Prefund and Settlement processing engine**. The engine works as follows:
 
 - An external vendor delivers a **Prefund file** and a **Settlement (posting) file** to the internal system in fixed, recurring **processing windows**.
   - **Production:** one Prefund file and one Settlement file per 60-minute window.
@@ -1478,9 +1457,6 @@ Key modeling rules:
 | Processing Window | Dropdown, dynamic | Options generated from configured window size (e.g. 10:00–10:10, or 10:00–11:00) |
 | Date | Date picker | Defaults to today |
 | Track | Toggle: Prefund / Settlement / All | Applies to every widget that supports it |
-| Data Center | Dropdown | Multi-select |
-| Environment | Toggle: Test / Production | Drives window-size default and SLA thresholds |
-| Business Unit / Module | Dropdown | Optional, only if the source system tags it |
 | Status | Multi-select: On Track / At Risk / Delayed / Failed / Waiting / Completed | |
 | Last Updated | Read-only timestamp, top-right | Auto-refresh indicator |
 
