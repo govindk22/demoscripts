@@ -1,0 +1,14 @@
+Simplified design in lines
+
+1. PROCESSING_FILE stores the Parent File, Batch, and Sub-File hierarchy using FILE_ID and PARENT_FILE_ID.
+2. PROCESSING_TRACKER stores every executable ACTIVITY + STEP for a Parent, Batch, or Sub-File.
+3. Parent activities: LOAD → VALIDATE → PARSE → PERSIST → BATCH_PROCESSING → SUBFILE_PROCESSING → COMPLETE.
+4. Batch activities: BCBS_SEND → BCBS_RECEIVE → RECONCILE → COMPLETE.
+5. Sub-file activities: GENERATE → VALIDATE → PUBLISH → COMPLETE.
+6. Each tracker row contains STATUS, WORKER_ID, LEASE_ID, LEASE_EXPIRES_AT, HEARTBEAT_AT, LAST_PROGRESS_AT, ATTEMPT_COUNT, ERROR_CODE, VERSION.
+7. Worker claims a READY tracker row using DB locking/FOR UPDATE SKIP LOCKED, assigns a lease, and commits immediately.
+8. Worker renews the lease periodically through HEARTBEAT_AT and LEASE_EXPIRES_AT; LAST_PROGRESS_AT confirms actual processing progress.
+9. A recovery worker identifies expired leases or stale progress and changes the tracker back to READY for takeover by another pod/DC.
+10. LEASE_ID + VERSION prevents the previous worker from updating or completing work after ownership has been taken over.
+11. File generation uses .tmp → validate/checksum → atomic rename → PUBLISHED, making restart safe when a pod crashes.
+12. Parent/Batches/Sub-Files are independently restartable, while PROCESSING_TRACKER provides the common execution, retry, takeover, and audit mechanism.
