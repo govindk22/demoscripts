@@ -1,0 +1,129 @@
+1. Use lowercase snake_case for all database objects.
+2. Use singular nouns for table names: customer, payment_transaction.
+3. Use descriptive, business-friendly names; avoid abbreviations.
+4. Primary key: <table>_id, e.g. customer_id.
+5. Foreign key: <referenced_table>_id.
+6. Boolean columns: use is_, has_, or can_, e.g. is_active.
+7. Timestamp columns: use created_at, updated_at, processed_at.
+8. Indexes: idx_<table>_<columns>.
+9. Constraints: pk_<table>, fk_<table>_<ref_table>, uk_<table>_<columns>.
+10. Avoid PostgreSQL reserved words, mixed case, quoted identifiers, and unnecessary prefixes.
+
+
+For an enterprise PostgreSQL review, I’d use a prompt that covers schema correctness, performance, migration safety, and impacted application modules.
+
+PostgreSQL Schema Review, Optimization & Impact Analysis
+
+Act as a senior PostgreSQL database architect and application architect. Review the complete PostgreSQL schema and identify optimization opportunities while preserving business behavior and backward compatibility.
+
+1. Schema Review
+
+Review:
+
+* Tables, columns, data types, nullability and defaults
+* Primary keys, foreign keys and unique constraints
+* Indexes and composite-index column ordering
+* Check constraints and referential integrity
+* Sequences/identity columns
+* Views, functions, triggers and procedures
+* Partitioning strategy
+* JSONB usage and GIN/GiST indexes
+* Naming standards and consistency
+* Redundant or unused structures
+* PostgreSQL reserved words and anti-patterns
+
+2. Performance Optimization
+
+Analyze:
+
+* Missing, redundant and overlapping indexes
+* High-cardinality vs low-cardinality indexes
+* Query access patterns and likely execution plans
+* Large-table scan risks
+* Join performance
+* Sort/hash/aggregation risks
+* Pagination strategy
+* Partitioning and partition-pruning opportunities
+* Data types and storage efficiency
+* VACUUM/ANALYZE and autovacuum considerations
+* Connection/concurrency considerations
+
+For every recommendation, provide:
+Current → Recommended → Reason → Expected Impact → Risk
+
+3. Data & Migration Safety
+
+Identify:
+
+* Breaking schema changes
+* Existing-data compatibility issues
+* Required data migrations
+* Default/backfill requirements
+* Locking risks
+* Large-table migration risks
+* Zero/low-downtime migration approach
+* Rollback strategy
+
+Prefer backward-compatible changes such as:
+Add → Deploy Code → Backfill → Validate → Switch → Remove
+
+4. Application Impact Analysis
+
+Search all connected source repositories/modules and identify every impacted:
+
+* Entity/model
+* DTO/request/response model
+* Repository/DAO
+* ORM mapping
+* EF Core configuration/migrations
+* SQL queries/stored procedures
+* API/service layer
+* Background workers
+* Event/message consumers and producers
+* Tests
+* Configuration
+* Reporting/ETL jobs
+
+Create an impact matrix:
+
+DB Change	Module	File	Object/Method	Required Change	Risk
+
+Do not modify unrelated modules.
+
+5. Implementation
+
+For approved changes:
+
+* Update the PostgreSQL migration scripts.
+* Update impacted application modules.
+* Update ORM mappings/entities.
+* Update SQL and repository queries.
+* Update tests.
+* Preserve API contracts unless explicitly required.
+* Maintain backward compatibility where possible.
+* Follow existing project coding standards.
+
+6. Validation
+
+Perform:
+
+* Schema validation
+* Migration validation
+* Compile/build validation
+* Unit/integration test validation
+* SQL/query validation
+* Referential-integrity validation
+* Regression-impact analysis
+
+Finally provide:
+
+1. Critical issues
+2. Recommended optimizations
+3. Schema changes
+4. Impacted modules
+5. Migration sequence
+6. Validation results
+7. Rollback plan
+8. Before/after schema summary
+
+Do not make destructive schema changes automatically. Clearly identify any change that requires explicit approval.
