@@ -1,0 +1,106 @@
+Yes. I’d standardize both S3 and NAS on the same logical lifecycle, while using the storage-specific mechanism for detecting upload completion.
+
+1. S3 — recommended flow
+
+TEMP/UPLOADING
+      ↓
+Upload complete
+      ↓
+INBOX
+      ↓
+Register + Idempotency Check
+      ↓
+DB Lease / Claim
+      ↓
+PROCESSING
+      ↓
+Process + Heartbeat
+      ↓
+COMPLETED
+
+Steps:
+
+1. Producer uploads to temp/ or uses an incomplete/multipart upload.
+2. Only after upload is complete, publish the object to inbox/.
+3. Worker detects the final inbox/ object; never process an uploading object.
+4. Verify object size/checksum and register it using an idempotency key.
+5. Claim ownership through PROCESSING_TRACKER with lease + heartbeat.
+6. Optionally copy/move to processing/ for operational visibility; DB ownership remains authoritative.
+7. Process the file and periodically renew the lease/update progress.
+8. On success, move/copy to completed/.
+9. Technical failure → error/; business/manual issue → exception/.
+10. If the worker lease expires, another DC/instance can take over using the tracker.
+
+Recommended:
+
+bucket/
+ ├── temp/
+ ├── inbox/
+ ├── processing/     # optional
+ ├── completed/
+ ├── error/
+ └── exception/
+
+⸻
+
+2. NAS / File System — recommended flow
+
+file.dat.uploading
+        ↓
+Complete write + close
+        ↓
+Atomic rename
+        ↓
+file.dat
+        ↓
+Size Stability Check
+        ↓
+Register + Idempotency Check
+        ↓
+DB Lease / Claim
+        ↓
+PROCESSING
+        ↓
+Process + Heartbeat
+        ↓
+COMPLETED
+
+Steps:
+
+1. Producer writes using file.dat.uploading.
+2. Producer closes the file after the upload/copy is complete.
+3. Rename atomically to file.dat; processor only scans the final naming pattern.
+4. As an additional safeguard, check file size twice with a short delay; if unchanged, continue.
+5. Calculate checksum and register the file using an idempotency key.
+6. Claim ownership through PROCESSING_TRACKER.
+7. Optionally move inbox/file.dat → processing/file.dat.
+8. Process with heartbeat + lease renewal.
+9. Success → completed/; technical failure → error/; business issue → exception/.
+10. Expired lease → another instance/DC takes ownership.
+
+Recommended:
+
+share/
+ ├── inbox/
+ ├── processing/
+ ├── completed/
+ ├── error/
+ └── exception/
+
+Common rule
+
+UPLOAD COMPLETE
+      ↓
+SIZE / CHECKSUM
+      ↓
+IDEMPOTENCY
+      ↓
+DB LEASE
+      ↓
+PROCESS
+      ↓
+HEARTBEAT
+      ↓
+COMPLETE / ERROR / EXCEPTION
+
+.done file is optional. Prefer the uploading → final pattern when you control the producer; use .done when the producer cannot provide a reliable completion/rename mechanism.
