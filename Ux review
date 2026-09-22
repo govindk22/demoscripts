@@ -1,0 +1,511 @@
+Here is a prompt you can give Claude to review and fix the UX, typography, spacing, visual hierarchy, and consistency across the entire Dashboard and Simulator, with an enterprise application mindset.
+
+Enterprise Dashboard & Simulator — UX/UI Review and Remediation
+
+You are an enterprise UX architect and senior frontend engineer.
+
+Review the entire application, specifically the Dashboard and Simulator, and identify and remediate UX/UI inconsistencies with a focus on readability, typography, information hierarchy, accessibility, density, responsiveness, and enterprise usability.
+
+1. First — Inspect Before Changing
+
+Do not immediately modify code.
+
+First inspect:
+
+* Dashboard pages
+* Simulator pages
+* Navigation
+* Headers
+* Cards
+* KPI widgets
+* Tables
+* Forms
+* Filters
+* Dialogs/modals
+* Tabs
+* Status indicators
+* Buttons
+* Tooltips
+* Empty/loading/error states
+* Responsive layouts
+* Shared CSS/theme/design-system components
+
+Identify the existing typography, spacing, component, and layout patterns before introducing changes.
+
+2. Establish a Consistent Typography System
+
+Create or reuse centralized design tokens.
+
+Use a consistent hierarchy such as:
+
+* Application/page title: 24–28px
+* Section heading: 18–20px
+* Card/KPI title: 13–14px
+* Primary KPI value: 24–32px
+* Body text: 14px
+* Secondary/supporting text: 12–13px
+* Table text: 13–14px
+* Form labels: 13–14px
+* Button text: 13–14px
+* Helper/error text: 12–13px
+
+Do not blindly apply these values. Inspect the current application and adjust based on information density and available screen size.
+
+Avoid excessive use of:
+
+* 10–11px text
+* all-caps text
+* bold everywhere
+* large KPI numbers that dominate the page
+* inconsistent font weights
+* arbitrary font sizes defined separately in components
+
+3. Centralize Design Tokens
+
+Create a single source of truth for:
+
+* Font family
+* Font sizes
+* Font weights
+* Line heights
+* Spacing
+* Border radius
+* Control heights
+* Card padding
+* Table row height
+* Colors
+* Status colors
+* Focus states
+
+Prefer CSS variables/theme tokens or the application’s existing design-system mechanism.
+
+Do not introduce duplicate styles when an existing shared component/token can be reused.
+
+4. Dashboard UX
+
+Optimize the Dashboard around this hierarchy:
+
+Level 1 — Current Processing Health
+
+Users should immediately understand:
+
+* Current processing window
+* Overall status
+* Processing progress
+* Amount/value affected
+* Pending amount
+* Failed amount
+* Processing duration
+
+Level 2 — Business KPIs
+
+Prioritize:
+
+* Prefund requests
+* Prefund transactions
+* Requested/reserved amount
+* Pending amount
+* Settlement transactions
+* Settlement amount
+* Failed amount
+* Amount requiring attention
+
+Level 3 — Exceptions
+
+Clearly surface:
+
+* Pending reservations
+* Timeouts
+* Failed transactions
+* Retry exhausted
+* Reconciliation required
+* Processing delays
+
+Level 4 — Detailed Diagnostics
+
+Keep technical information available through drill-down rather than dominating the main dashboard.
+
+Examples:
+
+* Error codes
+* MQ status
+* Database issues
+* Storage issues
+* Pod/worker information
+* Retry details
+* Correlation IDs
+
+5. KPI Card Standards
+
+Every KPI card should have a consistent structure:
+
+TITLE
+Primary Value
+Supporting context
+Trend / status
+Optional secondary metric
+
+Avoid inconsistent card heights, padding, font sizes, or alignment.
+
+Example:
+
+Pending Amount
+$1.82M
+42 transactions
+↑ 8.4% vs previous window
+
+Do not make every piece of information visually equal.
+
+6. Tables
+
+Review all tables for:
+
+* Column prioritization
+* Font size
+* Row height
+* Alignment
+* Numeric alignment
+* Currency formatting
+* Status presentation
+* Sorting
+* Filtering
+* Pagination
+* Sticky headers
+* Horizontal overflow
+* Responsive behavior
+
+Numbers and monetary values should be easy to scan.
+
+Use consistent formats:
+
+$1.82M
+$425.6K
+12,483
+99.82%
+
+Do not display excessive decimal precision unless business-required.
+
+7. Status Design
+
+Standardize statuses across Dashboard and Simulator.
+
+Example:
+
+READY
+PROCESSING
+COMPLETED
+PENDING
+FAILED
+RETRYING
+TIMEOUT
+RECONCILIATION REQUIRED
+
+Use consistent visual treatment for status badges, icons, and text.
+
+Do not rely on color alone.
+
+Example:
+
+● Completed
+● Processing
+● Failed
+● Attention Required
+
+Ensure sufficient contrast and accessibility.
+
+8. Simulator UX
+
+The Simulator should feel like an enterprise operational tool, not a generic form.
+
+Organize it into:
+
+Scenario
+   ↓
+Input
+   ↓
+Execution
+   ↓
+Processing Progress
+   ↓
+Result
+   ↓
+Evidence / Details
+
+Make it easy to:
+
+* Create test data
+* Upload input
+* Select processing scenario
+* Execute
+* Monitor progress
+* Inspect results
+* Review errors
+* Retry
+* Reset
+
+Avoid putting too many controls on one screen.
+
+Use progressive disclosure for advanced options.
+
+9. Forms
+
+Standardize:
+
+* Label placement
+* Control height
+* Required indicators
+* Validation messages
+* Help text
+* Dropdowns
+* Date/time controls
+* Currency/number inputs
+* File upload controls
+
+Validation should be:
+
+* Immediate where appropriate
+* Specific
+* Actionable
+* Consistent
+
+Avoid generic messages such as:
+
+“Invalid input.”
+
+Prefer:
+
+“Amount must be greater than $0.00.”
+
+10. Spacing and Density
+
+Use a consistent spacing scale.
+
+For example:
+
+4px
+8px
+12px
+16px
+24px
+32px
+
+Avoid arbitrary values such as:
+
+13px
+17px
+21px
+27px
+
+unless specifically justified.
+
+Enterprise dashboards should be information-dense but not visually crowded.
+
+11. Responsive Design
+
+Review:
+
+* Desktop
+* Laptop
+* Tablet
+* Smaller screens
+
+Ensure:
+
+* KPI cards reflow correctly
+* Tables remain usable
+* Filters wrap logically
+* Dialogs fit the viewport
+* Text does not truncate important information
+* Charts remain readable
+* Navigation remains usable
+
+Do not simply shrink fonts to make layouts fit.
+
+Prefer reflow, grouping, collapsing, and responsive layouts.
+
+12. Accessibility
+
+Target WCAG 2.2 AA principles.
+
+Review:
+
+* Keyboard navigation
+* Focus visibility
+* Color contrast
+* Screen-reader labels
+* Semantic HTML
+* Form labels
+* Error identification
+* Status announcements
+* Tooltip accessibility
+* Table semantics
+* Interactive element size
+* Color-independent status indicators
+
+Do not use color as the only indication of success/failure/status.
+
+13. Visual Consistency
+
+Identify and fix:
+
+* Different button heights
+* Different card padding
+* Different border radius
+* Different heading sizes
+* Different table styles
+* Different status badges
+* Different spacing
+* Different icon sizes
+* Different form control heights
+* Different modal layouts
+
+Create reusable components/tokens where duplication exists.
+
+14. Enterprise UX Principles
+
+Apply these principles throughout:
+
+* Information hierarchy over decoration
+* Consistency over novelty
+* Readability over density
+* Progressive disclosure over information overload
+* Actionable errors
+* Predictable navigation
+* Minimal cognitive load
+* Clear operational status
+* Accessibility by default
+* Responsive by design
+* Reusable design system
+* No unnecessary animations
+* No decorative UI that competes with operational information
+
+15. Do Not Over-Redesign
+
+Preserve the application’s existing:
+
+* Brand identity
+* Color palette
+* Business terminology
+* Navigation model
+* Functional behavior
+* Existing component library
+
+Do not introduce a completely new visual style unless the current design fundamentally prevents usability.
+
+Focus on refinement, consistency, and enterprise quality.
+
+16. Implementation Rules
+
+Before changing code:
+
+1. Identify the existing design system/theme.
+2. Identify duplicate styles.
+3. Identify global typography definitions.
+4. Identify reusable components.
+5. Identify page-specific overrides.
+6. Create a remediation plan.
+
+Then implement changes centrally wherever possible.
+
+Prefer:
+
+Design Tokens
+     ↓
+Shared Components
+     ↓
+Dashboard
+     ↓
+Simulator
+
+instead of individually fixing every component.
+
+Do not introduce !important unless absolutely necessary.
+
+Do not duplicate CSS.
+
+Do not break existing functionality.
+
+Do not change API contracts or business logic as part of UX remediation.
+
+17. Verification
+
+After implementation:
+
+* Build the application.
+* Run existing unit tests.
+* Run existing component/UI tests.
+* Check for console errors.
+* Check responsive layouts.
+* Check keyboard navigation.
+* Check accessibility.
+* Check all Dashboard widgets.
+* Check all Simulator workflows.
+* Check loading/error/empty states.
+* Check long numbers and large amounts.
+* Check long error messages.
+* Check large tables.
+* Check different processing statuses.
+
+Fix regressions before completing the task.
+
+18. Final Deliverable
+
+Provide:
+
+A. UX Findings
+
+Area
+Current Problem
+Impact
+Recommended Change
+Priority
+
+B. Typography System
+
+Document the final:
+
+Font Family
+Page Title
+Section Heading
+Card Title
+KPI Value
+Body
+Table
+Label
+Helper/Error
+Button
+
+C. Design Tokens
+
+Document the final spacing, sizing, typography, and component tokens.
+
+D. Implementation Summary
+
+List:
+
+* Files changed
+* Shared components changed
+* Design tokens added/changed
+* Dashboard changes
+* Simulator changes
+* Accessibility changes
+
+E. Validation
+
+Report:
+
+* Build result
+* Tests
+* Accessibility checks
+* Responsive checks
+* Known remaining issues
+
+Do not claim a test or validation was performed unless it was actually executed.
+
+Primary Objective
+
+The final Dashboard and Simulator should look and behave like a production-grade enterprise financial operations platform:
+
+clear → consistent → information-dense → accessible → responsive → actionable → maintainable.
+
+Do not optimize for visual novelty. Optimize for operational clarity and enterprise usability.
