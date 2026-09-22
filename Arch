@@ -1,0 +1,189 @@
+Yes, you can give Claude the Confluence page HTML, but raw Confluence inner HTML is not the best authoring format. For an architectural/security vision page, I recommend using a structured intermediate format and only converting back to Confluence HTML at the end.
+
+Recommended workflow
+
+Confluence Page
+      ↓
+Copy HTML
+      ↓
+Claude extracts structure/content
+      ↓
+Architecture + Security Vision model
+      ↓
+Claude updates/restructures
+      ↓
+Confluence-compatible HTML
+      ↓
+Copy/paste back to Confluence
+
+Best approach: preserve a structured document model
+
+Ask Claude to first convert the existing page into:
+
+1. Purpose & Vision
+2. Business Context
+3. Architecture Principles
+4. Target Architecture
+5. Processing Model
+6. Data & Integration Architecture
+7. Security Architecture
+8. Identity & Access
+9. Data Protection
+10. Network Security
+11. Secrets & Key Management
+12. Audit & Observability
+13. Resilience / Multi-DC
+14. Failure & Recovery
+15. Deployment Architecture
+16. Operational Model
+17. Risks & Decisions
+18. Architecture Roadmap
+
+Then provide your new architectural requirements and ask Claude to merge them without losing existing content.
+
+Don’t ask Claude simply:
+
+“Update this HTML.”
+
+Instead use a prompt like:
+
+You are an enterprise architecture and security documentation assistant.
+
+I will provide:
+
+1. Existing Confluence page HTML.
+2. New architecture requirements and decisions.
+3. A predefined documentation structure/template.
+
+Your task is to update the existing architecture page while preserving valuable existing content.
+
+Rules:
+
+* Preserve the existing architectural intent unless explicitly superseded.
+* Do not invent architecture decisions, technologies, security controls, compliance requirements, or implementation details.
+* Clearly distinguish CURRENT STATE, TARGET STATE, DECISION, ASSUMPTION, and OPEN QUESTION.
+* Remove obsolete or duplicated content when the new design supersedes it.
+* Keep terminology consistent throughout the document.
+* Make architecture relationships explicit.
+* Include security considerations for authentication, authorization, encryption, secrets, data protection, network controls, audit, logging, vulnerability management, and least privilege.
+* Include resilience considerations for multi-instance, multi-DC, failure recovery, retry, idempotency, ownership/lease, and disaster recovery.
+* For every major architectural component, document responsibility, dependencies, trust boundaries, failure behavior, and security controls.
+* Do not expose credentials, tokens, secrets, internal sensitive values, or unnecessary implementation details.
+
+Output TWO sections:
+
+SECTION 1 — REVIEW
+Provide:
+
+* Existing sections retained
+* Sections changed
+* New sections
+* Removed/replaced content
+* Open questions
+* Architectural/security gaps
+
+SECTION 2 — FINAL CONFLUENCE CONTENT
+Produce the complete updated page using the supplied template.
+
+The final output must be directly usable in Confluence.
+
+Use:
+
+* Clear headings
+* Tables where appropriate
+* Architecture decision tables
+* Mermaid diagrams where supported
+* Concise bullet points
+* Consistent terminology
+* Security and operational callouts
+
+Do not return partial HTML fragments. Return the complete updated page.
+
+EXISTING CONFLUENCE HTML:
+<<>>
+
+DOCUMENT TEMPLATE:
+<<>>
+
+NEW ARCHITECTURE/SECURITY REQUIREMENTS:
+<<>>
+
+Even better: use Markdown as the working format
+
+If your Confluence page isn’t extremely formatting-heavy, I’d have Claude produce:
+
+Confluence HTML
+        ↓
+Claude
+        ↓
+Canonical Markdown
+        ↓
+Architecture review/update
+        ↓
+Canonical Markdown
+        ↓
+Confluence HTML
+
+This is much easier to maintain than repeatedly asking an AI to manipulate nested Confluence HTML.
+
+For example, keep the authoritative version in Git:
+
+docs/
+ └── architecture/
+     └── ach-processing-architecture.md
+
+Then generate/paste the Confluence representation from that document.
+
+For your specific ACH architecture
+
+I would structure the page around:
+
+Architecture Vision
+│
+├── 1. Executive Architecture Summary
+├── 2. Business Processing Model
+│     └── Parent → Batch → Sub-file
+│
+├── 3. Target Architecture
+│     ├── .NET Services
+│     ├── S3 / NAS
+│     ├── Database
+│     ├── IBM MQ
+│     └── Multi-DC
+│
+├── 4. Processing & Recovery
+│     ├── Activity/Step
+│     ├── Lease
+│     ├── Heartbeat
+│     ├── Takeover
+│     └── Idempotency
+│
+├── 5. File Lifecycle
+│     ├── S3
+│     └── NAS
+│
+├── 6. Security Architecture
+│     ├── Identity
+│     ├── Authorization
+│     ├── Encryption
+│     ├── Secrets
+│     ├── Network
+│     ├── Data Protection
+│     └── Audit
+│
+├── 7. Resilience & Multi-DC
+├── 8. Observability
+├── 9. Deployment Architecture
+├── 10. Threat & Risk Considerations
+├── 11. Architecture Decisions
+└── 12. Open Questions / Roadmap
+
+One important recommendation
+
+If you’re going to repeatedly use Claude to maintain the page, don’t make the HTML the source of truth.
+
+Use:
+
+Markdown/structured architecture specification → Claude → Confluence HTML
+
+The HTML should be the published presentation, not the canonical architecture document. This also makes it much easier to review changes in Git, have Claude update individual sections, and prevent formatting degradation over multiple iterations.
