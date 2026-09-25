@@ -1,0 +1,944 @@
+Below is a complete enterprise-grade prompt you can give to Claude/Copilot/Codex to review the existing .NET Core messaging implementation and update it for safe, high-throughput concurrent send/receive processing.
+
+Enterprise .NET Concurrent Messaging Review & Remediation
+
+Role
+
+Act as a senior .NET enterprise architect and performance engineer specializing in:
+
+* .NET 8/10
+* BackgroundService / Worker Services
+* IBM MQ / RabbitMQ / Kafka
+* High-throughput asynchronous processing
+* Financial/payment processing
+* OpenShift/Kubernetes
+* Oracle/PostgreSQL
+* Distributed systems
+* Resilience, idempotency and concurrency
+* OpenTelemetry and production observability
+
+Review the existing source code first. Do not redesign the application blindly.
+
+The objective is to modify the existing implementation so that message receiving, processing and sending can operate concurrently with controlled resource usage, while preserving existing business behavior.
+
+⸻
+
+1. Inspect the Existing Application
+
+Analyze the complete messaging flow before making changes.
+
+Identify:
+
+* Message receiver/consumer implementation
+* Message sender/producer implementation
+* BackgroundService / hosted services
+* DI lifetimes
+* Database access
+* EF Core usage
+* MQ/Kafka/RabbitMQ configuration
+* Connection/channel management
+* Message acknowledgment
+* Retry handling
+* Error handling
+* Transaction boundaries
+* Current concurrency model
+* Thread/task creation
+* Cancellation handling
+* Shutdown behavior
+* Logging
+* Metrics
+* Configuration
+* Existing tests
+
+Create a concise architecture diagram of the current flow.
+
+Do not change code until the current implementation and dependencies are understood.
+
+⸻
+
+2. Target Architecture
+
+Refactor toward this model:
+
+                 Message Broker
+                      │
+                      ▼
+              ┌───────────────┐
+              │ Message       │
+              │ Receiver      │
+              └───────┬───────┘
+                      │
+                      ▼
+             Bounded Channel<T>
+                      │
+          ┌───────────┼───────────┐
+          ▼           ▼           ▼
+       Worker 1    Worker 2    Worker N
+          │           │           │
+          └───────────┼───────────┘
+                      ▼
+               Business Logic
+                      │
+              ┌───────┴────────┐
+              ▼                ▼
+           Database        Downstream
+                              │
+                              ▼
+                       Concurrent Sender
+                              │
+                              ▼
+                        Message Broker
+
+Separate these concerns:
+
+1. Receive
+2. Buffer
+3. Process
+4. Send
+5. Acknowledge
+6. Retry
+7. Observe
+
+Do not allow the receiver to become blocked by slow business processing unless broker semantics require it.
+
+⸻
+
+3. Bounded Concurrency
+
+Introduce controlled concurrency using Channel<T>, Parallel.ForEachAsync, or another appropriate native .NET mechanism.
+
+Prefer:
+
+Channel<T>
+
+for long-running worker services requiring explicit backpressure.
+
+Use a bounded channel:
+
+Channel.CreateBounded<T>(
+    new BoundedChannelOptions(capacity)
+    {
+        FullMode = BoundedChannelFullMode.Wait,
+        SingleWriter = false,
+        SingleReader = false
+    });
+
+Do NOT create an unbounded queue unless there is a documented reason.
+
+Make concurrency configurable:
+
+{
+  "Messaging": {
+    "WorkerCount": 20,
+    "QueueCapacity": 1000,
+    "MaxConcurrentSends": 20,
+    "ReceiveBatchSize": 50
+  }
+}
+
+Do not hard-code concurrency limits.
+
+Validate configuration at startup.
+
+Reject invalid values such as:
+
+* WorkerCount <= 0
+* QueueCapacity <= 0
+* Excessively large values that could destabilize the application
+
+⸻
+
+4. Receiver Design
+
+Review the current consumer implementation.
+
+The receiver should:
+
+1. Receive the message.
+2. Perform minimum required validation.
+3. Create/propagate correlation information.
+4. Place the message into the bounded queue.
+5. Respect backpressure.
+6. Avoid creating uncontrolled tasks.
+7. Respect cancellation.
+
+Avoid:
+
+Task.Run(() => ProcessAsync(message));
+
+for every received message.
+
+Avoid:
+
+List<Task> tasks.Add(...)
+
+with unlimited growth.
+
+The receiver must not continuously accept messages faster than the application can safely process them.
+
+⸻
+
+5. Worker Pool
+
+Implement configurable worker processing.
+
+Conceptually:
+
+var workers = Enumerable
+    .Range(0, workerCount)
+    .Select(_ => ProcessMessagesAsync(stoppingToken));
+await Task.WhenAll(workers);
+
+Each worker must:
+
+* Read from the channel
+* Process independently
+* Handle exceptions per message
+* Never terminate the entire worker pool because of one bad message
+* Respect cancellation
+* Record processing metrics
+* Propagate correlation/trace context
+* Release resources correctly
+
+An individual message failure must not kill all workers.
+
+⸻
+
+6. Concurrent Sending
+
+Review the current outbound implementation.
+
+Ensure multiple messages can be sent concurrently when broker/client semantics allow it.
+
+However:
+
+Do not assume a broker channel/session is thread-safe.
+
+Determine whether the existing client library supports concurrent use of:
+
+* Connection
+* Channel
+* Session
+* Producer
+* Consumer
+
+If not thread-safe, implement an appropriate pool or controlled sender abstraction.
+
+Do not introduce synchronization that serializes the entire application unnecessarily.
+
+Avoid:
+
+lock(...)
+
+around the entire send operation.
+
+Prefer asynchronous concurrency with an explicit limit.
+
+⸻
+
+7. Broker-Specific Review
+
+Identify the actual messaging technology used by the application.
+
+For IBM MQ:
+
+Review:
+
+* Connection management
+* MQ connection pooling
+* MQGET behavior
+* Syncpoint/transaction usage
+* Message acknowledgment
+* Backout handling
+* Backout queue
+* Commit/rollback
+* Channel/session thread safety
+* Prefetch/receive strategy where applicable
+
+For RabbitMQ:
+
+Review:
+
+* Connection lifecycle
+* Channel lifecycle
+* Consumer prefetch
+* ACK/NACK
+* Publisher confirms
+* Channel thread safety
+* Connection recovery
+
+For Kafka:
+
+Review:
+
+* Consumer group behavior
+* Partition assignment
+* MaxPollRecords
+* Consumer concurrency
+* Producer batching
+* Idempotent producer
+* Offset commit strategy
+* Rebalancing behavior
+
+Do not apply RabbitMQ/Kafka concepts to IBM MQ or vice versa.
+
+⸻
+
+8. Message Acknowledgment
+
+Review acknowledgment semantics carefully.
+
+Determine whether the current code does:
+
+Receive
+  ↓
+Process
+  ↓
+Send
+  ↓
+ACK
+
+or:
+
+Receive
+  ↓
+ACK
+  ↓
+Process
+
+Prefer processing/transaction semantics that prevent message loss.
+
+The implementation must explicitly document:
+
+* When the message is considered consumed
+* When ACK occurs
+* What happens if the process crashes
+* What happens if sending succeeds but ACK fails
+* What happens if DB commit succeeds but ACK fails
+* What happens if downstream processing fails
+
+Do not claim exactly-once processing unless the complete architecture actually provides it.
+
+Target:
+
+At-least-once delivery + idempotent business processing = effectively-once business behavior.
+
+⸻
+
+9. Idempotency
+
+Review the current code for duplicate-message handling.
+
+Introduce an idempotency mechanism where required.
+
+Potential key:
+
+SourceSystem + MessageId + BusinessOperation
+
+or an equivalent business-safe identifier.
+
+Use a database unique constraint where appropriate.
+
+Example:
+
+UNIQUE(SourceSystem, MessageId, Operation)
+
+The implementation must safely handle:
+
+Message received
+      ↓
+Processing
+      ↓
+Application crashes
+      ↓
+Message delivered again
+      ↓
+Duplicate detected
+      ↓
+Original business result reused / processing skipped
+
+Never rely only on an in-memory HashSet or dictionary for distributed idempotency.
+
+⸻
+
+10. Database Concurrency
+
+Review EF Core and database access.
+
+Ensure:
+
+* DbContext is not shared between concurrent workers.
+* Each worker receives its own scoped DbContext.
+* Scoped services are not injected incorrectly into singleton hosted services.
+* Database connection pools are not exhausted.
+* Long-running transactions are avoided.
+* Database transactions cover only the required atomic operation.
+* Optimistic concurrency is handled correctly.
+
+If using:
+
+BackgroundService
+
+create an appropriate scope per message/work unit:
+
+using var scope =
+    serviceScopeFactory.CreateScope();
+
+Do not make DbContext singleton.
+
+⸻
+
+11. Backpressure
+
+Implement explicit backpressure.
+
+The system must protect:
+
+Application
+     ↓
+Database
+     ↓
+Downstream systems
+     ↓
+Message broker
+
+from overload.
+
+If the processing queue is full:
+
+* Slow the receiver
+* Allow broker-side backpressure/prefetch behavior where supported
+* Do not continuously allocate memory
+* Do not drop messages silently
+
+Expose queue depth as a metric.
+
+⸻
+
+12. Retry Strategy
+
+Review all retry mechanisms.
+
+Avoid nested uncontrolled retries such as:
+
+Broker retry
+ + application retry
+ + HTTP retry
+ + database retry
+ + MQ retry
+
+which can multiply load.
+
+Define retry ownership clearly.
+
+Implement:
+
+* Maximum attempts
+* Exponential backoff
+* Jitter
+* Retryable vs non-retryable errors
+* Dead-letter/backout handling
+* Retry exhaustion
+* Correlation ID preservation
+
+Example:
+
+Attempt 1 → immediate
+Attempt 2 → 1 sec
+Attempt 3 → 5 sec
+Attempt 4 → 30 sec
+Attempt 5 → DLQ/Error
+
+Use configuration rather than hard-coded values.
+
+⸻
+
+13. Cancellation and Graceful Shutdown
+
+The application must handle:
+
+SIGTERM
+Pod termination
+Deployment
+Scaling
+Node failure
+Application restart
+
+Correct shutdown sequence:
+
+Stop accepting new messages
+        ↓
+Complete channel writer
+        ↓
+Allow active workers to finish
+        ↓
+Commit/rollback appropriately
+        ↓
+ACK only successfully completed work
+        ↓
+Dispose broker resources
+        ↓
+Exit
+
+Respect CancellationToken throughout the call chain.
+
+Do not swallow cancellation exceptions as normal failures.
+
+Configure a reasonable shutdown timeout.
+
+⸻
+
+14. Multi-Pod / Kubernetes Safety
+
+The application must work correctly with multiple replicas:
+
+Pod 1 ─┐
+Pod 2 ─┼──► Message Broker
+Pod 3 ─┤
+Pod 4 ─┘
+
+Do not use:
+
+* Static locks
+* lock
+* In-memory distributed state
+* Local dictionaries as ownership mechanisms
+
+for cross-pod coordination.
+
+Where database work ownership is required, use:
+
+* Idempotency
+* Database unique constraints
+* Optimistic concurrency
+* Lease/claim mechanisms where applicable
+
+⸻
+
+15. Resource Protection
+
+Review and tune:
+
+CPU
+
+Avoid excessive worker counts.
+
+Memory
+
+Use bounded queues.
+
+Database
+
+Ensure:
+
+WorkerCount <= safe DB concurrency
+
+and account for all other database consumers.
+
+HTTP
+
+Use:
+
+IHttpClientFactory
+
+where HTTP is involved.
+
+MQ
+
+Reuse connections appropriately while respecting client thread-safety.
+
+File/S3/NFS
+
+Avoid loading very large files entirely into memory.
+
+Use streaming where practical.
+
+⸻
+
+16. Observability
+
+Add structured logs containing, where applicable:
+
+Timestamp
+Level
+Application
+Environment
+DataCenter
+WorkerId
+PodName
+Operation
+MessageId
+CorrelationId
+TraceId
+Activity
+Status
+Attempt
+DurationMs
+ErrorCode
+ExceptionType
+
+Do NOT log:
+
+* Passwords
+* Tokens
+* Credentials
+* Encryption keys
+* Full payment payloads
+* Sensitive financial/customer data
+
+Add metrics for:
+
+messages_received_total
+messages_processed_total
+messages_failed_total
+messages_retried_total
+messages_duplicate_total
+processing_duration
+send_duration
+receive_duration
+queue_depth
+active_workers
+retry_count
+failure_count
+db_duration
+downstream_duration
+
+Use OpenTelemetry where already supported by the application.
+
+⸻
+
+17. Performance Requirements
+
+Analyze the current implementation for:
+
+* Sequential awaits
+* Unnecessary locks
+* Excessive allocations
+* Blocking calls
+* .Result
+* .Wait()
+* .GetAwaiter().GetResult()
+* Unbounded Task.Run
+* Thread.Sleep
+* Synchronous IO
+* Excessive serialization/deserialization
+* Excessive database round trips
+* N+1 queries
+* Connection creation per message
+* Excessive logging
+
+Replace blocking operations with asynchronous APIs where appropriate.
+
+Do not optimize code blindly. Identify measurable bottlenecks.
+
+⸻
+
+18. Concurrency Safety
+
+Explicitly inspect for race conditions involving:
+
+* Shared collections
+* Static variables
+* Counters
+* Message state
+* Retry state
+* Database entities
+* Broker channels
+* Producer instances
+* File operations
+* Cached state
+
+For every shared mutable object, determine whether it is:
+
+1. Immutable
+2. Thread-safe
+3. Scoped per worker
+4. Protected by synchronization
+5. Replaceable with a safer architecture
+
+Prefer eliminating shared mutable state over adding locks.
+
+⸻
+
+19. Configuration
+
+Centralize configuration:
+
+{
+  "Messaging": {
+    "WorkerCount": 20,
+    "QueueCapacity": 1000,
+    "MaxConcurrentSends": 20,
+    "ReceiveBatchSize": 50,
+    "Retry": {
+      "MaxAttempts": 5,
+      "InitialDelaySeconds": 1,
+      "MaxDelaySeconds": 30
+    }
+  }
+}
+
+Use strongly typed options:
+
+IOptions<MessagingOptions>
+
+Validate options during application startup.
+
+Document every configuration value.
+
+⸻
+
+20. Testing
+
+Create/update tests for:
+
+Functional
+
+* Receive message
+* Process message
+* Send response
+* ACK success
+* Processing failure
+* Retry
+* Duplicate message
+
+Concurrency
+
+Test:
+
+1 worker
+5 workers
+10 workers
+20 workers
+50 workers
+
+where practical.
+
+Verify that:
+
+* No duplicate business processing occurs
+* No messages are lost
+* No race conditions occur
+* Database remains consistent
+
+Failure scenarios
+
+Simulate:
+
+* DB unavailable
+* MQ unavailable
+* Downstream timeout
+* Downstream failure
+* Application crash
+* Worker crash
+* Pod termination
+* Network interruption
+* Message duplication
+* ACK failure
+
+Load test
+
+Measure:
+
+Throughput
+Latency
+P95/P99 latency
+CPU
+Memory
+DB connections
+MQ connections
+Queue depth
+Error rate
+Retry rate
+
+Do not claim million-message capability without benchmark evidence.
+
+⸻
+
+21. Preserve Existing Business Behavior
+
+This is a refactoring/remediation exercise.
+
+Do NOT change:
+
+* Business rules
+* Message contracts
+* Database schema
+* API contracts
+* External interfaces
+* Existing workflow semantics
+
+unless a change is required for concurrency correctness.
+
+If a breaking change is required, clearly identify it before implementing it.
+
+⸻
+
+22. Implementation Rules
+
+Follow these rules:
+
+1. Inspect first.
+2. Reuse existing abstractions where they are sound.
+3. Make the smallest safe architectural change.
+4. Prefer native .NET asynchronous primitives.
+5. Avoid unnecessary third-party libraries.
+6. Do not introduce a framework merely to implement a worker pool.
+7. Keep concurrency configurable.
+8. Keep queues bounded.
+9. Make processing idempotent.
+10. Keep database operations short.
+11. Never use in-memory locks for distributed coordination.
+12. Do not hide exceptions.
+13. Preserve correlation IDs.
+14. Make shutdown graceful.
+15. Keep the code production maintainable.
+
+⸻
+
+23. Required Deliverables
+
+After reviewing the repository, produce:
+
+A. Current-State Assessment
+
+Provide:
+
+Current architecture
+Current concurrency model
+Current bottlenecks
+Current risks
+Thread-safety issues
+Resource risks
+Reliability risks
+
+Classify each finding:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+
+⸻
+
+B. Recommended Architecture
+
+Provide a concise diagram showing:
+
+Receiver
+   ↓
+Bounded Channel
+   ↓
+Worker Pool
+   ↓
+Business Processing
+   ↓
+Concurrent Sender
+   ↓
+ACK
+
+Explain how the architecture works with multiple pods.
+
+⸻
+
+C. Code Changes
+
+For every modified file provide:
+
+File
+Purpose
+Changes
+Reason
+Concurrency impact
+Risk
+
+Actually implement the changes rather than only describing them.
+
+⸻
+
+D. Configuration Changes
+
+Show all new configuration:
+
+appsettings.json
+Environment variables
+Kubernetes/OpenShift configuration
+
+⸻
+
+E. Test Changes
+
+Add/update unit and integration tests covering:
+
+* Concurrency
+* Retry
+* Duplicate messages
+* Shutdown
+* Failure recovery
+* Backpressure
+* Multiple workers
+
+⸻
+
+F. Performance Validation
+
+Provide a testable benchmark plan.
+
+Calculate/measure:
+
+Messages/sec
+Average latency
+P95
+P99
+CPU
+Memory
+DB utilization
+MQ utilization
+Queue depth
+
+Do not provide fabricated benchmark numbers.
+
+⸻
+
+24. Final Acceptance Criteria
+
+The implementation is acceptable only when:
+
+* Messages can be received concurrently.
+* Messages can be processed concurrently.
+* Responses can be sent concurrently where broker semantics permit.
+* Concurrency is bounded.
+* Queue memory is bounded.
+* Backpressure works.
+* Duplicate delivery is safely handled.
+* Database contexts are isolated per worker.
+* Broker clients are used according to their thread-safety model.
+* Retries are controlled.
+* Failures do not terminate the entire worker pool.
+* Graceful shutdown works.
+* Multiple Kubernetes/OpenShift replicas work correctly.
+* Structured logging is available.
+* Metrics expose throughput, queue depth, failures and latency.
+* Existing business behavior is preserved.
+* Tests pass.
+* No .Result, .Wait() or unnecessary blocking calls remain.
+* No uncontrolled Task.Run per message remains.
+* No cross-pod coordination depends on in-memory state.
+
+Important
+
+Do not stop after producing recommendations.
+
+Inspect the existing code, identify the concrete problems, implement the required changes, update configuration and tests, and then provide a final summary of:
+
+1. What was wrong
+2. What was changed
+3. Why it is safe
+4. How concurrency now works
+5. How failures are handled
+6. How to configure worker count
+7. How to run the tests
+8. Remaining risks
+9. Recommended load-test scenarios
+
+The final solution should be suitable for a production enterprise financial/payment processing platform running on Kubernetes/OpenShift with multiple application replicas.
